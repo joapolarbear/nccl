@@ -10,6 +10,7 @@
 #include <type_traits>
 #include "reduce_kernel.h" // for reduction funcs
 #include "common.h"
+#include <time.h>
 
 #define SPINS_BEFORE_CHECK_ABORT 1000000
 
@@ -165,6 +166,10 @@ class ncclPrimitives {
   template <int DIRECTRECV, int DIRECTSEND, int RECV, int SEND, int SRC, int DST>
   inline __device__ void
   GenericOp(const T* srcPtr, T* dstPtr, int nelem, ssize_t directOffset) {
+    //huhanpeng
+    auto start = clock();
+
+
     int offset = 0;
     int sliceSize = stepSize*SLICESTEPS;
     int dataSize = max(DIVUP(nelem, 16*SLICESPERCHUNK)*16, sliceSize/32);
@@ -220,6 +225,10 @@ class ncclPrimitives {
       for (int i=1-DST; i<SEND*NSEND; i++) dsts[DST+i] += directSendInc<DIRECTSEND>(i, realSize, sliceSize);
       offset += realSize;
     }
+
+    //huhanpeng
+    auto end = clock();
+    printf("GenericOp start at %f, end at %f\n", (double)start, (double)end);
   }
 
   __device__ __forceinline__ void loadRecvConn(struct ncclConnInfo* conn, int i, T* directBuff) {
