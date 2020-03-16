@@ -229,6 +229,9 @@ ncclResult_t netRecvFree(void* transportResources) {
 }
 
 ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
+  //huhanpeng
+  // BPF_TRACE("netSendProxy starts with ncclNet: %s", ncclNet->name);
+
   struct netSendResources* resources = (struct netSendResources*) (args->connector->transportResources);
   if (args->state == ncclProxyOpReady) {
     // Update opCount
@@ -336,6 +339,7 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
+      BPF_TIMELINE(args->unique_name, args->unique_name, "temp");
     }
   }
   return ncclSuccess;
@@ -389,6 +393,7 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
+      BPF_TIMELINE(args->unique_name, args->unique_name, "temp");
     }
   }
   return ncclSuccess;

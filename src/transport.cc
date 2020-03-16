@@ -141,6 +141,7 @@ void* persistentThread(void *comm_) {
   int idle = 1;
   int idleSpin = 0;
   while (1) {
+    // fetch an op (type: ncclProxyArgs)
     do {
       if (*comm->abortFlag) return NULL;
       if (op == NULL) {
@@ -157,6 +158,7 @@ void* persistentThread(void *comm_) {
         pthread_mutex_unlock(&state->mutex);
       }
     } while (op == NULL);
+    
     op->idle = 0;
     // opCount >= lastOpCount are part of an ongoing GroupStart/GroupEnd that hasn't started
     // yet and might be cancelled before they even start. Hold on on those.

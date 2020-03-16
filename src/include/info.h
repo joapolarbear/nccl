@@ -36,6 +36,10 @@ struct ncclInfo {
   // Algorithm details
   int chunkSteps;
   int sliceSteps;
+
+  // unique name for byteprofile
+  const char* unique_name;
+
   // Computed later
   int algorithm;
   int protocol;

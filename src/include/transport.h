@@ -66,6 +66,9 @@ struct ncclProxyArgs {
   pthread_mutex_t mutex;
   struct ncclProxyArgs* next;
   struct ncclProxyArgs* nextPeer;
+
+  // Unique name for byteprofile
+  const char* unique_name;
 };
 
 struct ncclProxyPool;

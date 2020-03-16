@@ -396,6 +396,7 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
     return ncclInvalidUsage;
   }
   for (int bid=0; bid<coll.args.nChannels; bid++) {
+    // Use multiple channels for parallel, according the gradDim.x
     struct ncclChannel* channel = info->comm->channels+(info->comm->myParams->gridDim.x % info->comm->nChannels);
 
     if (channel->collCount == NCCL_MAX_OPS) {
@@ -405,6 +406,7 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
 
     // Proxy
     proxyArgs.channel = channel;
+    proxyArgs.unique_name = info->unique_name;
     NCCLCHECK(transportSaveProxies(&proxyArgs, info->pattern, info->root, info->comm->nRanks));
 
     info->comm->myParams->gridDim.x++;

@@ -282,6 +282,13 @@ static ncclResult_t fillInfo(struct ncclComm* comm, struct ncclPeerInfo* info, u
 
 template <int type>
 static ncclResult_t selectTransport(struct ncclTopoSystem* topo, struct ncclTopoGraph* graph, struct ncclPeerInfo* myInfo, struct ncclPeerInfo* peerInfo, struct ncclConnect* connect, struct ncclConnector* connector, int buffSize, int channelId) {
+  /**
+    struct ncclTransport ncclTransports[NTRANSPORTS] = {
+      p2pTransport,
+      shmTransport,
+      netTransport,
+    };
+  */
   for (int t=0; t<NTRANSPORTS; t++) {
     struct ncclTransport *transport = ncclTransports+t;
     struct ncclTransportComm* transportComm = type == 1 ? &transport->send : &transport->recv;
@@ -725,6 +732,9 @@ static ncclResult_t setCpuAffinity(int cudaDev) {
 }
 
 ncclResult_t ncclCommInitRankSync(ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank, int cudaDev) {
+  //huhanpeng
+  BPF_TRACE("ncclCommInitRankSync starts");
+
   cpu_set_t affinitySave;
   sched_getaffinity(0, sizeof(cpu_set_t), &affinitySave);
 
@@ -754,6 +764,9 @@ cleanup:
 }
 
 static ncclResult_t ncclCommInitRankDev(ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank, int cudaDev) {
+  //huhanpeng
+  BPF_TRACE("ncclCommInitRankDev starts");
+
   ncclResult_t res;
   char* env = getenv("NCCL_COMM_ID");
   if (env && myrank == 0) {

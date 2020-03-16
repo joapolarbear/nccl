@@ -15,6 +15,54 @@ uint64_t ncclDebugMask = NCCL_INIT; // Default debug sub-system mask is INIT
 FILE *ncclDebugFile = stdout;
 pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
 
+
+// for byteprofile
+int ncclByteProfileStart = -1, ncclByteProfileEnd = -1;
+FILE *bpfFile = NULL;
+ncclTrace* nccl_traces = NULL;
+ncclTrace* nccl_last_trace = NULL;
+std::unordered_map<std::string, struct pair_uint64_t_bool> trace_name_cnt;
+int tensor_num = 0;
+
+int ncclParseFileName(const char *FileEnv, FILE **fd) {
+  int c = 0;
+  char debugFn[PATH_MAX+1] = "";
+  char *dfn = debugFn;
+  while (FileEnv[c] != '\0' && c < PATH_MAX) {
+    if (FileEnv[c++] != '%') {
+      *dfn++ = FileEnv[c-1];
+      continue;
+    }
+    switch (FileEnv[c++]) {
+      case '%': // Double %
+        *dfn++ = '%';
+        break;
+      case 'h': // %h = hostname
+        char hostname[1024];
+        getHostName(hostname, 1024, '.');
+        dfn += snprintf(dfn, PATH_MAX, "%s", hostname);
+        break;
+      case 'p': // %p = pid
+        dfn += snprintf(dfn, PATH_MAX, "%d", getpid());
+        break;
+      default: // Echo everything we don't understand
+        *dfn++ = '%';
+        *dfn++ = FileEnv[c-1];
+        break;
+    }
+  }
+  *dfn = '\0';
+  if (debugFn[0] != '\0') {
+    FILE *file = fopen(debugFn, "w");
+    if (file != NULL) {
+      INFO(NCCL_ALL,"DEBUG file is '%s'", debugFn);
+      *fd = file;
+      return 0;
+    }
+  }
+  return 1;
+}
+
 void ncclDebugInit() {
   pthread_mutex_lock(&ncclDebugLock);
   if (ncclDebugLevel != -1) return;
@@ -77,45 +125,60 @@ void ncclDebugInit() {
    */
   const char* ncclDebugFileEnv = getenv("NCCL_DEBUG_FILE");
   if (ncclDebugLevel > NCCL_LOG_VERSION && ncclDebugFileEnv != NULL) {
-    int c = 0;
-    char debugFn[PATH_MAX+1] = "";
-    char *dfn = debugFn;
-    while (ncclDebugFileEnv[c] != '\0' && c < PATH_MAX) {
-      if (ncclDebugFileEnv[c++] != '%') {
-        *dfn++ = ncclDebugFileEnv[c-1];
-        continue;
-      }
-      switch (ncclDebugFileEnv[c++]) {
-        case '%': // Double %
-          *dfn++ = '%';
-          break;
-        case 'h': // %h = hostname
-          char hostname[1024];
-          getHostName(hostname, 1024, '.');
-          dfn += snprintf(dfn, PATH_MAX, "%s", hostname);
-          break;
-        case 'p': // %p = pid
-          dfn += snprintf(dfn, PATH_MAX, "%d", getpid());
-          break;
-        default: // Echo everything we don't understand
-          *dfn++ = '%';
-          *dfn++ = ncclDebugFileEnv[c-1];
-          break;
-      }
-    }
-    *dfn = '\0';
-    if (debugFn[0] != '\0') {
-      FILE *file = fopen(debugFn, "w");
-      if (file != NULL) {
-        INFO(NCCL_ALL,"DEBUG file is '%s'", debugFn);
-        ncclDebugFile = file;
-      }
-    }
+    // int c = 0;
+    // char debugFn[PATH_MAX+1] = "";
+    // char *dfn = debugFn;
+    // while (ncclDebugFileEnv[c] != '\0' && c < PATH_MAX) {
+    //   if (ncclDebugFileEnv[c++] != '%') {
+    //     *dfn++ = ncclDebugFileEnv[c-1];
+    //     continue;
+    //   }
+    //   switch (ncclDebugFileEnv[c++]) {
+    //     case '%': // Double %
+    //       *dfn++ = '%';
+    //       break;
+    //     case 'h': // %h = hostname
+    //       char hostname[1024];
+    //       getHostName(hostname, 1024, '.');
+    //       dfn += snprintf(dfn, PATH_MAX, "%s", hostname);
+    //       break;
+    //     case 'p': // %p = pid
+    //       dfn += snprintf(dfn, PATH_MAX, "%d", getpid());
+    //       break;
+    //     default: // Echo everything we don't understand
+    //       *dfn++ = '%';
+    //       *dfn++ = ncclDebugFileEnv[c-1];
+    //       break;
+    //   }
+    // }
+    // *dfn = '\0';
+    // if (debugFn[0] != '\0') {
+    //   FILE *file = fopen(debugFn, "w");
+    //   if (file != NULL) {
+    //     INFO(NCCL_ALL,"DEBUG file is '%s'", debugFn);
+    //     ncclDebugFile = file;
+    //   }
+    // }
+    ncclParseFileName(ncclDebugFileEnv, &ncclDebugFile);
   }
 
 #ifdef ENABLE_TRACE
   ncclEpoch = std::chrono::high_resolution_clock::now();
 #endif
+
+  // for byteprofile
+  const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
+  if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == 1) {
+    ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
+    ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
+
+    const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
+    char ByteProfilePath[PATH_MAX+1] = "";
+    snprintf(ByteProfilePath, sizeof(ByteProfilePath),
+                   "%s/comm_%%h_%%p.json", ncclByteProfileDir);
+    ncclParseFileName(ByteProfilePath, &bpfFile);
+  }
+
   pthread_mutex_unlock(&ncclDebugLock);
 }
 
@@ -151,10 +214,12 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
   }
 #endif
   else if (level == NCCL_LOG_BPF_TRACE) {
-    auto delta = std::chrono::high_resolution_clock::now();
-    double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count()*1000;
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+    auto start_t = (long long)(us.count());
     len = snprintf(buffer, sizeof(buffer),
-                   "%s:%d:%d [%d] %f %s:%d NCCL BPF TRACE ", hostname, getpid(), gettid(), cudaDev, timestamp, filefunc, line);
+                   "%s:%d:%d [%d] %lld %s:%d NCCL BPF TRACE ", hostname, getpid(), gettid(), cudaDev, start_t, filefunc, line);
   }
 
   if (len) {
@@ -174,3 +239,101 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
     abort();
   }
 }
+
+// For byteprofile
+int ncclAddTrace(const char *name, const char *pid, const char *tid){
+  if (ncclDebugLevel == -1) ncclDebugInit();
+  if (bpfFile == NULL) return 0;
+
+  // Decide whether to output traces
+  std::string name_str(name);
+  std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
+  if (finder == trace_name_cnt.end()) {
+    tensor_num += 1;
+    trace_name_cnt[name_str] = {0, false};
+  } 
+  if (trace_name_cnt[name_str].cnt > ncclByteProfileEnd){
+    if (! trace_name_cnt[name_str].end){
+      // the first time larger than ncclByteProfileEnd
+      trace_name_cnt[name_str].end = true;
+      tensor_num -= 1;
+      if (tensor_num == 0) {
+        // all recorded tensors are ready to output
+        ncclOutputTrace();
+      }
+    }
+    return 0;
+  } else {
+    trace_name_cnt[name_str].cnt += 1;
+  }
+
+
+  auto now = std::chrono::system_clock::now();
+  auto duration = now.time_since_epoch();
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+  auto cur_t = (long long)(us.count());
+
+  ncclTrace *p_trace = (ncclTrace *)malloc(sizeof(ncclTrace));
+  strcpy(p_trace->name, name);
+  strcpy(p_trace->pid, pid);
+  strcpy(p_trace->tid, tid);
+
+  if (nccl_traces == NULL) {
+    p_trace->ts = cur_t;
+    p_trace->dur = 0;
+    p_trace->prev = NULL;
+    p_trace->next = NULL;
+    nccl_traces = p_trace;
+    nccl_last_trace = p_trace;
+  } else {
+    p_trace->ts = nccl_last_trace->ts + nccl_last_trace->dur;
+    p_trace->dur = cur_t - p_trace->ts;
+    p_trace->prev = nccl_last_trace;
+    p_trace->next = NULL;
+    nccl_last_trace->next = p_trace;
+    nccl_last_trace = p_trace;
+  }
+  return 0;
+}
+
+void ncclOutputTrace() {
+  ncclTrace *p_trace = nccl_traces;
+  while (p_trace != NULL) {
+    if (p_trace->prev == NULL){
+      // the first trace
+      fprintf(bpfFile, "{\n    \"traceEvents\": [\n");
+    } else {
+      fprintf(bpfFile, ",\n");
+    }
+
+    fprintf(bpfFile,
+          "        {\n"
+          "            \"ph\": \"X\",\n"
+          "            \"args\": {\n"
+          "                \"name\": \"%s\"\n"
+          "            },\n"
+          "            \"pid\": \"%s\",\n"
+          "            \"name\": \"%s\",\n"
+          "            \"ts\": %lld,\n"
+          "            \"dur\": %lld,\n"
+          "            \"tid\": \"%s\",\n"
+          "            \"cat\": \"Comm\"\n"
+          "        }", 
+          p_trace->name, 
+          p_trace->pid, 
+          p_trace->name, 
+          p_trace->ts, 
+          p_trace->dur, 
+          p_trace->tid);
+    fflush(bpfFile);
+    p_trace = p_trace->next;
+  }
+  fprintf(bpfFile, "\n"
+     "    ],\n"
+     "    \"displayTimeUnit\": \"ms\"\n"
+     "}\n");
+  fflush(bpfFile);
+  fclose(bpfFile);
+  bpfFile = NULL;
+}
+

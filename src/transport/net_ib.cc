@@ -595,6 +595,9 @@ ncclResult_t ncclIbDeregMr(void* comm, void* mhandle) {
 }
 
 ncclResult_t ncclIbIsend(void* sendComm, void* data, int size, void* mhandle, void** request) {
+  //huhanpeng
+  BPF_TRACE("ncclIbIsend starts");
+
   struct ncclIbSendComm* comm = (struct ncclIbSendComm*)sendComm;
   if (comm->ready == 0) NCCLCHECK(ncclSendCheck(comm));
   if (comm->ready == 0) { *request = NULL; return ncclSuccess; }
@@ -652,10 +655,18 @@ ncclResult_t ncclIbIsend(void* sendComm, void* data, int size, void* mhandle, vo
   struct ibv_send_wr* bad_wr;
   NCCLCHECK(wrap_ibv_post_send(comm->qp, &wr, &bad_wr));
   *request = req;
+
+  // huhanpeng
+  BPF_TRACE("ncclIbIsend ends");
+
   return ncclSuccess;
 }
 
 ncclResult_t ncclIbPostFifo(struct ncclIbRecvComm* comm, uint32_t rkey, uint64_t addr, int size) {
+
+  //huhanpeng
+  BPF_TRACE("ncclIbPostFifo starts");
+
   struct ibv_send_wr wr;
   memset(&wr, 0, sizeof(wr));
   struct ncclIbRequest* req;
@@ -686,6 +697,10 @@ ncclResult_t ncclIbPostFifo(struct ncclIbRecvComm* comm, uint32_t rkey, uint64_t
 }
 
 ncclResult_t ncclIbIrecv(void* recvComm, void* data, int size, void* mhandle, void** request) {
+
+  //huhanpeng
+  BPF_TRACE("ncclIbIrecv starts");
+
   struct ncclIbRecvComm* comm = (struct ncclIbRecvComm*)recvComm;
   if (comm->ready == 0) NCCLCHECK(ncclRecvCheck(comm));
   if (comm->ready == 0) { *request = NULL; return ncclSuccess; }
@@ -721,6 +736,10 @@ ncclResult_t ncclIbIrecv(void* recvComm, void* data, int size, void* mhandle, vo
 }
 
 ncclResult_t ncclIbFlush(void* recvComm, void* data, int size, void* mhandle) {
+
+  //huhanpeng
+  BPF_TRACE("ncclIbFlush starts");
+
   struct ncclIbRecvComm* comm = (struct ncclIbRecvComm*)recvComm;
   if (comm->gpuFlush.enabled == 0 || size == 0) return ncclSuccess;
 
@@ -744,6 +763,7 @@ ncclResult_t ncclIbFlush(void* recvComm, void* data, int size, void* mhandle) {
   NCCLCHECK(wrap_ibv_post_send(comm->gpuFlush.qp, &wr, &bad_wr));
 
   int done = 0;
+  // Block until the recv request is done
   while (done == 0) {
     NCCLCHECK((ncclResult_t)ncclIbTest(req, &done, NULL));
   }
@@ -752,6 +772,10 @@ ncclResult_t ncclIbFlush(void* recvComm, void* data, int size, void* mhandle) {
 }
 
 ncclResult_t ncclIbTest(void* request, int* done, int* size) {
+
+  //huhanpeng
+  BPF_TRACE("ncclIbTest starts");
+  
   struct ncclIbRequest *r = (struct ncclIbRequest*)request;
   *done = 0;
 
@@ -759,6 +783,7 @@ ncclResult_t ncclIbTest(void* request, int* done, int* size) {
     if (r->done == 1) {
       *done = 1;
       if (size) *size = r->size;
+      // Set ->used to 0 to free the request.
       r->used = 0;
       return ncclSuccess;
     }
@@ -766,7 +791,7 @@ ncclResult_t ncclIbTest(void* request, int* done, int* size) {
     int wrDone = 0;
     struct ibv_wc wcs[4];
     NCCLCHECK(wrap_ibv_poll_cq(r->verbs->cq, 4, wcs, &wrDone));
-    if (wrDone == 0) return ncclSuccess;
+    if (wrDone == 0) return ncclSuccess; // If there is no completed request, just return, return *done=0
 
     for (int w=0; w<wrDone; w++) {
       struct ibv_wc *wc = wcs+w;

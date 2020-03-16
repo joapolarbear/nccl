@@ -16,6 +16,8 @@
 #include <limits.h>
 #include <string.h>
 #include "nccl_net.h"
+#include <unordered_map>
+#include <string>
 
 #define gettid() (pid_t) syscall(SYS_gettid)
 
@@ -26,6 +28,24 @@ extern FILE *ncclDebugFile;
 extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
+int ncclAddTrace(const char *name, const char *pid, const char *tid);
+void ncclOutputTrace();
+
+#define MAX_TRACE_NAME_LEN 128
+typedef struct ncclTraceT {
+  char name[MAX_TRACE_NAME_LEN];
+  char pid[MAX_TRACE_NAME_LEN];
+  char tid[MAX_TRACE_NAME_LEN];
+  long long ts = 0;
+  long long dur = 0;
+  struct ncclTraceT* prev = NULL;
+  struct ncclTraceT* next = NULL;
+} ncclTrace;
+
+struct pair_uint64_t_bool {
+    uint64_t cnt;
+    bool end;
+};
 
 // Let code temporarily downgrade WARN into INFO
 extern thread_local int ncclDebugNoWarn;
@@ -38,7 +58,9 @@ extern thread_local int ncclDebugNoWarn;
 #define WARN(...) ncclDebugLog(NCCL_LOG_WARN, NCCL_ALL, __FILE__, __LINE__, __VA_ARGS__)
 #define INFO(FLAGS, ...) ncclDebugLog(NCCL_LOG_INFO, (FLAGS), __func__, __LINE__, __VA_ARGS__)
 
+// for byteprofile
 #define BPF_TRACE(...) ncclDebugLog(NCCL_LOG_BPF_TRACE, NCCL_ALL, __FILE__, __LINE__, __VA_ARGS__) 
+#define BPF_TIMELINE(...) ncclAddTrace(__VA_ARGS__)
 
 #ifdef ENABLE_TRACE
 #define TRACE(FLAGS, ...) ncclDebugLog(NCCL_LOG_TRACE, (FLAGS), __func__, __LINE__, __VA_ARGS__)
