@@ -150,6 +150,13 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
                    "%s:%d:%d [%d] %f %s:%d NCCL TRACE ", hostname, getpid(), gettid(), cudaDev, timestamp, filefunc, line);
   }
 #endif
+  else if (level == NCCL_LOG_BPF_TRACE) {
+    auto delta = std::chrono::high_resolution_clock::now();
+    double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(delta).count()*1000;
+    len = snprintf(buffer, sizeof(buffer),
+                   "%s:%d:%d [%d] %f %s:%d NCCL BPF TRACE ", hostname, getpid(), gettid(), cudaDev, timestamp, filefunc, line);
+  }
+
   if (len) {
     va_list vargs;
     va_start(vargs, fmt);

@@ -167,7 +167,7 @@ class ncclPrimitives {
   inline __device__ void
   GenericOp(const T* srcPtr, T* dstPtr, int nelem, ssize_t directOffset) {
     //huhanpeng
-    auto start = clock();
+    // auto start = clock();
 
 
     int offset = 0;
@@ -227,8 +227,8 @@ class ncclPrimitives {
     }
 
     //huhanpeng
-    auto end = clock();
-    printf("GenericOp start at %f, end at %f\n", (double)start, (double)end);
+    // auto end = clock();
+    // printf("GenericOp start at %f, end at %f\n", (double)start, (double)end);
   }
 
   __device__ __forceinline__ void loadRecvConn(struct ncclConnInfo* conn, int i, T* directBuff) {

@@ -38,6 +38,8 @@ extern thread_local int ncclDebugNoWarn;
 #define WARN(...) ncclDebugLog(NCCL_LOG_WARN, NCCL_ALL, __FILE__, __LINE__, __VA_ARGS__)
 #define INFO(FLAGS, ...) ncclDebugLog(NCCL_LOG_INFO, (FLAGS), __func__, __LINE__, __VA_ARGS__)
 
+#define BPF_TRACE(...) ncclDebugLog(NCCL_LOG_BPF_TRACE, NCCL_ALL, __FILE__, __LINE__, __VA_ARGS__) 
+
 #ifdef ENABLE_TRACE
 #define TRACE(FLAGS, ...) ncclDebugLog(NCCL_LOG_TRACE, (FLAGS), __func__, __LINE__, __VA_ARGS__)
 extern std::chrono::high_resolution_clock::time_point ncclEpoch;
