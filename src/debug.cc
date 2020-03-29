@@ -175,7 +175,9 @@ void ncclDebugInit() {
     const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
     char ByteProfilePath[PATH_MAX+1] = "";
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
-                   "%s/comm_%%h_%%p.json", ncclByteProfileDir);
+                   "%s/comm_detail_%%h_%%p.json", ncclByteProfileDir);
+
+    BPF_TRACE("Detailed communication traces are outputed to %s", ByteProfilePath);
     ncclParseFileName(ByteProfilePath, &bpfFile);
   }
 
@@ -335,5 +337,6 @@ void ncclOutputTrace() {
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
+  BPF_TRACE("output nccl trace (byteprofile)")
 }
 
