@@ -29,6 +29,8 @@ int ncclParseFileName(const char *FileEnv, FILE **fd) {
   int c = 0;
   char debugFn[PATH_MAX+1] = "";
   char *dfn = debugFn;
+  char hostname[1024];
+  getHostName(hostname, 1024, '.');
   while (FileEnv[c] != '\0' && c < PATH_MAX) {
     if (FileEnv[c++] != '%') {
       *dfn++ = FileEnv[c-1];
@@ -39,8 +41,6 @@ int ncclParseFileName(const char *FileEnv, FILE **fd) {
         *dfn++ = '%';
         break;
       case 'h': // %h = hostname
-        char hostname[1024];
-        getHostName(hostname, 1024, '.');
         dfn += snprintf(dfn, PATH_MAX, "%s", hostname);
         break;
       case 'p': // %p = pid
@@ -56,7 +56,7 @@ int ncclParseFileName(const char *FileEnv, FILE **fd) {
   if (debugFn[0] != '\0') {
     FILE *file = fopen(debugFn, "w");
     if (file != NULL) {
-      INFO(NCCL_ALL,"DEBUG file is '%s'", debugFn);
+      printf("%s:%d DEBUG file is '%s'\n", hostname, getpid(), debugFn);
       *fd = file;
       return 0;
     }
@@ -134,16 +134,21 @@ void ncclDebugInit() {
 #endif
 
   // for byteprofile
+  char hostname[1024];
+  getHostName(hostname, 1024, '.');
   const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
   if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
     ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
     ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
+    printf("%s Timeline rang:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
 
     const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
                    "%s/comm_detail_%%h_%%p.json", ncclByteProfileDir);
-
+    printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
     ncclParseFileName(ByteProfilePath, &bpfFile);
+  } else {
+    printf("%s BYTEPOS_TRACE_ON is not set\n", hostname);
   }
 
   pthread_mutex_unlock(&ncclDebugLock);
@@ -209,6 +214,7 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
 
 // For byteprofile
 int ncclAddTrace(const char *name, const char *pid, const char *tid){
+  BPF_TRACE("ncclAddTrace start");
   if (ncclDebugLevel == -1) ncclDebugInit();
   if (bpfFile == NULL) return 0;
 
@@ -303,9 +309,5 @@ void ncclOutputTrace() {
   fclose(bpfFile);
   bpfFile = NULL;
   BPF_TRACE("output nccl trace (byteprofile)");
-}
-
-void ncclTimelineInfo() {
-  BPF_TRACE("Detailed communication traces are outputed to %s", ByteProfilePath);
 }
 

@@ -766,7 +766,6 @@ cleanup:
 static ncclResult_t ncclCommInitRankDev(ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank, int cudaDev) {
   //huhanpeng
   BPF_TRACE("ncclCommInitRankDev starts");
-  BPF_TIMELINE_INFO();
 
   ncclResult_t res;
   char* env = getenv("NCCL_COMM_ID");
