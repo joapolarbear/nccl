@@ -24,7 +24,6 @@ FILE *bpfFile = NULL;
 ncclTrace* nccl_traces = NULL;
 ncclTrace* nccl_last_trace = NULL;
 std::unordered_map<std::string, struct pair_uint64_t_bool> trace_name_cnt;
-int tensor_num = 0;
 
 int ncclParseFileName(const char *FileEnv, FILE **fd) {
   int c = 0;
@@ -216,39 +215,49 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
 
 // For byteprofile
 int ncclAddTrace(const char *name, const char *pid, const char *tid){
-  BPF_TRACE("ncclAddTrace start");
   if (ncclDebugLevel == -1) ncclDebugInit();
   if (bpfFile == NULL) return 0;
+
+  // TODO (huhanpeng): delete garbel code
+  if (!strstr(name, "horovod")) return 0;
+
+  pthread_mutex_lock(&ncclDebugLock);
 
   // Decide whether to output traces
   std::string name_str;
   if (name == NULL) {
     name_str = std::string("default_name");
-    BPF_TRACE("Input name is NULL");
+    printf("Input name is NULL");
   } else {
     name_str = std::string(name);
   }
   std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
   if (finder == trace_name_cnt.end()) {
-    tensor_num += 1;
     trace_name_cnt[name_str] = {0, false};
+    printf("ncclAddTrace adds new name %s\n", name);
   } 
-  if (trace_name_cnt[name_str].cnt > ncclByteProfileEnd){
+  if (trace_name_cnt[name_str].cnt >= ncclByteProfileEnd){
     if (! trace_name_cnt[name_str].end){
       // the first time larger than ncclByteProfileEnd
       trace_name_cnt[name_str].end = true;
-      tensor_num -= 1;
-      if (tensor_num == 0) {
+
+      bool all_arrive = true;
+      for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
+        if (!it->second.end) {
+          all_arrive = false;
+          break;
+        }
+      }
+      if (all_arrive) {
         // all recorded tensors are ready to output
         ncclOutputTrace();
       }
     }
-    BPF_TRACE("ncclAddTrace end");
+    pthread_mutex_unlock(&ncclDebugLock);
     return 0;
   } else {
     trace_name_cnt[name_str].cnt += 1;
   }
-
 
   auto now = std::chrono::system_clock::now();
   auto duration = now.time_since_epoch();
@@ -275,7 +284,7 @@ int ncclAddTrace(const char *name, const char *pid, const char *tid){
     nccl_last_trace->next = p_trace;
     nccl_last_trace = p_trace;
   }
-  BPF_TRACE("ncclAddTrace end");
+  pthread_mutex_unlock(&ncclDebugLock);
   return 0;
 }
 
@@ -318,7 +327,7 @@ void ncclOutputTrace() {
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
-  BPF_TRACE("output nccl trace (byteprofile)");
+  printf("output nccl trace (byteprofile)");
 }
 
 bool isBPF_ON() {
