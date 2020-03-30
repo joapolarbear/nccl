@@ -30,6 +30,7 @@ extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
 int ncclAddTrace(const char *name, const char *pid, const char *tid);
 void ncclOutputTrace();
+void ncclTimelineInfo();
 
 #define MAX_TRACE_NAME_LEN 128
 typedef struct ncclTraceT {
@@ -61,6 +62,7 @@ extern thread_local int ncclDebugNoWarn;
 // for byteprofile
 #define BPF_TRACE(...) ncclDebugLog(NCCL_LOG_BPF_TRACE, NCCL_ALL, __FILE__, __LINE__, __VA_ARGS__) 
 #define BPF_TIMELINE(...) ncclAddTrace(__VA_ARGS__)
+#define BPF_TIMELINE_INFO(...) ncclTimelineInfo()
 
 #ifdef ENABLE_TRACE
 #define TRACE(FLAGS, ...) ncclDebugLog(NCCL_LOG_TRACE, (FLAGS), __func__, __LINE__, __VA_ARGS__)

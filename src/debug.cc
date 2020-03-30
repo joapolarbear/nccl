@@ -18,6 +18,7 @@ pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
 
 // for byteprofile
 int ncclByteProfileStart = -1, ncclByteProfileEnd = -1;
+char ByteProfilePath[PATH_MAX+1] = "";
 FILE *bpfFile = NULL;
 ncclTrace* nccl_traces = NULL;
 ncclTrace* nccl_last_trace = NULL;
@@ -125,40 +126,6 @@ void ncclDebugInit() {
    */
   const char* ncclDebugFileEnv = getenv("NCCL_DEBUG_FILE");
   if (ncclDebugLevel > NCCL_LOG_VERSION && ncclDebugFileEnv != NULL) {
-    // int c = 0;
-    // char debugFn[PATH_MAX+1] = "";
-    // char *dfn = debugFn;
-    // while (ncclDebugFileEnv[c] != '\0' && c < PATH_MAX) {
-    //   if (ncclDebugFileEnv[c++] != '%') {
-    //     *dfn++ = ncclDebugFileEnv[c-1];
-    //     continue;
-    //   }
-    //   switch (ncclDebugFileEnv[c++]) {
-    //     case '%': // Double %
-    //       *dfn++ = '%';
-    //       break;
-    //     case 'h': // %h = hostname
-    //       char hostname[1024];
-    //       getHostName(hostname, 1024, '.');
-    //       dfn += snprintf(dfn, PATH_MAX, "%s", hostname);
-    //       break;
-    //     case 'p': // %p = pid
-    //       dfn += snprintf(dfn, PATH_MAX, "%d", getpid());
-    //       break;
-    //     default: // Echo everything we don't understand
-    //       *dfn++ = '%';
-    //       *dfn++ = ncclDebugFileEnv[c-1];
-    //       break;
-    //   }
-    // }
-    // *dfn = '\0';
-    // if (debugFn[0] != '\0') {
-    //   FILE *file = fopen(debugFn, "w");
-    //   if (file != NULL) {
-    //     INFO(NCCL_ALL,"DEBUG file is '%s'", debugFn);
-    //     ncclDebugFile = file;
-    //   }
-    // }
     ncclParseFileName(ncclDebugFileEnv, &ncclDebugFile);
   }
 
@@ -168,16 +135,14 @@ void ncclDebugInit() {
 
   // for byteprofile
   const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
-  if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == 1) {
+  if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
     ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
     ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
 
     const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
-    char ByteProfilePath[PATH_MAX+1] = "";
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
                    "%s/comm_detail_%%h_%%p.json", ncclByteProfileDir);
 
-    BPF_TRACE("Detailed communication traces are outputed to %s", ByteProfilePath);
     ncclParseFileName(ByteProfilePath, &bpfFile);
   }
 
@@ -337,6 +302,10 @@ void ncclOutputTrace() {
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
-  BPF_TRACE("output nccl trace (byteprofile)")
+  BPF_TRACE("output nccl trace (byteprofile)");
+}
+
+void ncclTimelineInfo() {
+  BPF_TRACE("Detailed communication traces are outputed to %s", ByteProfilePath);
 }
 
