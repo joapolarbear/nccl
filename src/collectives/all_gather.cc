@@ -8,11 +8,11 @@
 #include "collectives.h"
 
 NCCL_API(ncclResult_t, ncclAllGather, const void* sendbuff, void* recvbuff, size_t sendcount,
-    ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream);
+    ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream, const char* unique_name);
 ncclResult_t ncclAllGather(const void* sendbuff, void* recvbuff, size_t sendcount,
-    ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream) {
+    ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream, const char* unique_name) {
   struct ncclInfo info = { ncclCollAllGather, "AllGather",
-    sendbuff, recvbuff, sendcount, datatype, ncclSum, 0, comm, stream, /* Args */
+    sendbuff, recvbuff, sendcount, datatype, ncclSum, 0, comm, stream, unique_name, /* Args */
     ALLGATHER_CHUNKSTEPS, ALLGATHER_SLICESTEPS };
   return ncclEnqueueCheck(&info);
 }
