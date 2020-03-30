@@ -30,6 +30,7 @@ extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
 int ncclAddTrace(const char *name, const char *pid, const char *tid);
 void ncclOutputTrace();
+bool isBPF_ON();
 
 #define MAX_TRACE_NAME_LEN 128
 typedef struct ncclTraceT {

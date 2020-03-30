@@ -432,6 +432,8 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
 
 ncclResult_t ncclEnqueueCheck(struct ncclInfo* info) {
   if (info->comm == NULL) return ncclInvalidArgument;
+  // For byteprofile, make sure the name is given.
+  if (isBPF_ON() && info->unique_name == NULL) return ncclInvalidArgument;
 
   INFO(NCCL_COLL,"%s: opCount %lx sendbuff %p recvbuff %p count %zi datatype %d op %d root %d comm %p [nranks=%d] stream %p",
        info->opName, info->comm->opCount, info->sendbuff, info->recvbuff, info->count,

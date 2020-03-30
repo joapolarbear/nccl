@@ -17,6 +17,7 @@ pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
 
 
 // for byteprofile
+bool isTraceOn = false;
 int ncclByteProfileStart = -1, ncclByteProfileEnd = -1;
 char ByteProfilePath[PATH_MAX+1] = "";
 FILE *bpfFile = NULL;
@@ -138,6 +139,7 @@ void ncclDebugInit() {
   getHostName(hostname, 1024, '.');
   const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
   if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
+    isTraceOn = true;
     ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
     ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
     printf("%s Timeline rang:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
@@ -219,7 +221,13 @@ int ncclAddTrace(const char *name, const char *pid, const char *tid){
   if (bpfFile == NULL) return 0;
 
   // Decide whether to output traces
-  std::string name_str(name);
+  std::string name_str;
+  if (name == NULL) {
+    name_str = std::string("default_name");
+    BPF_TRACE("Input name is NULL");
+  } else {
+    name_str = std::string(name);
+  }
   std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
   if (finder == trace_name_cnt.end()) {
     tensor_num += 1;
@@ -235,6 +243,7 @@ int ncclAddTrace(const char *name, const char *pid, const char *tid){
         ncclOutputTrace();
       }
     }
+    BPF_TRACE("ncclAddTrace end");
     return 0;
   } else {
     trace_name_cnt[name_str].cnt += 1;
@@ -266,6 +275,7 @@ int ncclAddTrace(const char *name, const char *pid, const char *tid){
     nccl_last_trace->next = p_trace;
     nccl_last_trace = p_trace;
   }
+  BPF_TRACE("ncclAddTrace end");
   return 0;
 }
 
@@ -309,5 +319,10 @@ void ncclOutputTrace() {
   fclose(bpfFile);
   bpfFile = NULL;
   BPF_TRACE("output nccl trace (byteprofile)");
+}
+
+bool isBPF_ON() {
+  if (ncclDebugLevel == -1) ncclDebugInit();
+  return isTraceOn;
 }
 

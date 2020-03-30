@@ -33,12 +33,13 @@ struct ncclInfo {
   int root;
   ncclComm_t comm;
   cudaStream_t stream;
-  // Algorithm details
-  int chunkSteps;
-  int sliceSteps;
 
   // unique name for byteprofile
   const char* unique_name;
+
+  // Algorithm details
+  int chunkSteps;
+  int sliceSteps;
 
   // Computed later
   int algorithm;
