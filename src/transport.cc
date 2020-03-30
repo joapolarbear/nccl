@@ -109,6 +109,7 @@ static ncclResult_t SaveProxy(int peer, struct ncclProxyArgs* args) {
   op->progress = connector->transportComm->proxy;
   op->state = ncclProxyOpReady;
   // INFO(NCCL_ALL, "Add op to communicator, name: %s", op->unique_name);
+  INFO(NCCL_ALL, "SaveProxy addr:%p, name:%s", op, op->unique_name);
   ProxyAppend(connector, op);
   return ncclSuccess;
 }
@@ -162,11 +163,10 @@ void* persistentThread(void *comm_) {
     
     op->idle = 0;
 
-    INFO(NCCL_ALL, "persistentThread before: find an op, name: %s, state: %d, idle: %d", op->unique_name, op->state, op->idle);
+    INFO(NCCL_ALL, "persistentThread before: find an op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
     // opCount >= lastOpCount are part of an ongoing GroupStart/GroupEnd that hasn't started
     // yet and might be cancelled before they even start. Hold on on those.
     if (op->state != ncclProxyOpNone && op->opCount < comm->lastOpCount) ret = op->progress(op);
-    INFO(NCCL_ALL, "persistentThread after : find an op, name: %s, state: %d, idle: %d", op->unique_name, op->state, op->idle);
 
     if (ret != ncclSuccess) {
       comm->fatalError = ret;

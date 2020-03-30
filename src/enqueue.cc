@@ -406,7 +406,7 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
 
     // Proxy
     proxyArgs.channel = channel;
-    proxyArgs.unique_name = info->unique_name;
+    strcpy(proxyArgs.unique_name, info->unique_name);
     NCCLCHECK(transportSaveProxies(&proxyArgs, info->pattern, info->root, info->comm->nRanks));
 
     info->comm->myParams->gridDim.x++;
