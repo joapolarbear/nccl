@@ -216,7 +216,7 @@ void ncclTimelineInit(int rank) {
 
     const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
-                   "%s/comm_detail_%d.json", ncclByteProfileDir, rank);
+                   "%s/%d/comm_detail.json", ncclByteProfileDir, rank);
     printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
     ncclParseFileName(ByteProfilePath, &bpfFile);
   } else {
