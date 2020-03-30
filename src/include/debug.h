@@ -32,6 +32,8 @@ int ncclAddTrace(const char *name, int pid);
 void ncclOutputTrace();
 bool isBPF_ON(int rank);
 
+#define ENABLE_TRACE
+
 #define MAX_TRACE_NAME_LEN 128
 typedef struct ncclTraceT {
   char name[MAX_TRACE_NAME_LEN];
