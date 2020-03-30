@@ -28,9 +28,9 @@ extern FILE *ncclDebugFile;
 extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
-int ncclAddTrace(const char *name, const char *pid, const char *tid);
+int ncclAddTrace(const char *name, int pid);
 void ncclOutputTrace();
-bool isBPF_ON();
+bool isBPF_ON(int rank);
 
 #define MAX_TRACE_NAME_LEN 128
 typedef struct ncclTraceT {

@@ -68,7 +68,7 @@ struct ncclProxyArgs {
   struct ncclProxyArgs* nextPeer;
 
   // Unique name for byteprofile
-  char unique_name[CONNECT_SIZE];
+  char unique_name[MAX_TRACE_NAME_LEN];
 };
 
 struct ncclProxyPool;

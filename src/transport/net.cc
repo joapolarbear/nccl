@@ -339,7 +339,7 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
-      BPF_TIMELINE(args->unique_name, args->unique_name, "temp");
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank);
     }
   }
   return ncclSuccess;
@@ -393,7 +393,8 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
-      BPF_TIMELINE(args->unique_name, args->unique_name, "temp");
+
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank);
     }
   }
   return ncclSuccess;

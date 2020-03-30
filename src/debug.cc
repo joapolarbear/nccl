@@ -17,7 +17,7 @@ pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
 
 
 // for byteprofile
-bool isTraceOn = false;
+int isTraceOn = -1;
 int ncclByteProfileStart = -1, ncclByteProfileEnd = -1;
 char ByteProfilePath[PATH_MAX+1] = "";
 FILE *bpfFile = NULL;
@@ -133,25 +133,6 @@ void ncclDebugInit() {
   ncclEpoch = std::chrono::high_resolution_clock::now();
 #endif
 
-  // for byteprofile
-  char hostname[1024];
-  getHostName(hostname, 1024, '.');
-  const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
-  if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
-    isTraceOn = true;
-    ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
-    ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
-    printf("%s Timeline rang:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
-
-    const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
-    snprintf(ByteProfilePath, sizeof(ByteProfilePath),
-                   "%s/comm_detail_%%h_%%p.json", ncclByteProfileDir);
-    printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
-    ncclParseFileName(ByteProfilePath, &bpfFile);
-  } else {
-    printf("%s BYTEPOS_TRACE_ON is not set\n", hostname);
-  }
-
   pthread_mutex_unlock(&ncclDebugLock);
 }
 
@@ -213,9 +194,40 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
   }
 }
 
-// For byteprofile
-int ncclAddTrace(const char *name, const char *pid, const char *tid){
-  if (ncclDebugLevel == -1) ncclDebugInit();
+/** For byteprofile
+ *
+*/
+void ncclTimelineInit(int rank) {
+  pthread_mutex_lock(&ncclDebugLock);
+  if (isTraceOn >= 0) {
+    pthread_mutex_unlock(&ncclDebugLock);
+    return; 
+  }
+  
+  // for byteprofile
+  char hostname[1024];
+  getHostName(hostname, 1024, '.');
+  const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
+  if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
+    isTraceOn = 1;
+    ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
+    ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
+    printf("%s Timeline rang:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
+
+    const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
+    snprintf(ByteProfilePath, sizeof(ByteProfilePath),
+                   "%s/comm_detail_%d.json", ncclByteProfileDir, rank);
+    printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
+    ncclParseFileName(ByteProfilePath, &bpfFile);
+  } else {
+    isTraceOn = 0;
+    printf("%s BYTEPOS_TRACE_ON is not set\n", hostname);
+  }
+  pthread_mutex_unlock(&ncclDebugLock);
+}
+
+int ncclAddTrace(const char *name, int pid){
+  if (isTraceOn == -1) ncclTimelineInit(pid);
   if (bpfFile == NULL) return 0;
 
   // TODO (huhanpeng): delete garbel code
@@ -265,9 +277,11 @@ int ncclAddTrace(const char *name, const char *pid, const char *tid){
   auto cur_t = (long long)(us.count());
 
   ncclTrace *p_trace = (ncclTrace *)malloc(sizeof(ncclTrace));
+  char debugFn[PATH_MAX+1];
+  snprintf(debugFn, PATH_MAX, "comm_detail_%d", pid);
   strcpy(p_trace->name, name);
-  strcpy(p_trace->pid, pid);
-  strcpy(p_trace->tid, tid);
+  strcpy(p_trace->pid, debugFn);
+  strcpy(p_trace->tid, "none");
 
   if (nccl_traces == NULL) {
     p_trace->ts = cur_t;
@@ -330,8 +344,8 @@ void ncclOutputTrace() {
   printf("output nccl trace (byteprofile)");
 }
 
-bool isBPF_ON() {
-  if (ncclDebugLevel == -1) ncclDebugInit();
-  return isTraceOn;
+bool isBPF_ON(int rank) {
+  if (isTraceOn == -1) ncclTimelineInit(rank);
+  return isTraceOn == 1;
 }
 
