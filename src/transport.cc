@@ -204,7 +204,10 @@ void* persistentThread(void *comm_) {
       state->pool = freeOp;
     }
     op = next;
-    TRACE(NCCL_ALL, "persistentThread: next op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
+
+    if (op == NULL) TRACE(NCCL_ALL, "persistentThread: next op, name: NULL, state: NULL, addr: NULL");
+    else TRACE(NCCL_ALL, "persistentThread: next op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
+    
     if (op == state->ops) {
       if (idle == 1) {
         if (++idleSpin == 10) {

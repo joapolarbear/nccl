@@ -28,7 +28,7 @@ extern FILE *ncclDebugFile;
 extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
-int ncclAddTrace(const char *name, int pid);
+int ncclAddTrace(const char *name, int pid, bool mark);
 void ncclOutputTrace();
 bool isBPF_ON(int rank);
 

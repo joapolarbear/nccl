@@ -226,7 +226,7 @@ void ncclTimelineInit(int rank) {
   pthread_mutex_unlock(&ncclDebugLock);
 }
 
-int ncclAddTrace(const char *name, int pid){
+int ncclAddTrace(const char *name, int pid, bool mark){
   if (isTraceOn == -1) ncclTimelineInit(pid);
   if (bpfFile == NULL) return 0;
 
@@ -239,17 +239,17 @@ int ncclAddTrace(const char *name, int pid){
   std::string name_str;
   if (name == NULL) {
     name_str = std::string("default_name");
-    printf("Input name is NULL");
+    printf("%s: Input name is NULL\n", ByteProfilePath);
   } else {
     name_str = std::string(name);
   }
   std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
   if (finder == trace_name_cnt.end()) {
     trace_name_cnt[name_str] = {0, false};
-    printf("ncclAddTrace adds new name %s\n", name);
+    printf("%s ncclAddTrace adds new name %s\n", ByteProfilePath, name);
   } 
   if (trace_name_cnt[name_str].cnt >= ncclByteProfileEnd){
-    if (! trace_name_cnt[name_str].end){
+    if (bpfFile != NULL){
       // the first time larger than ncclByteProfileEnd
       trace_name_cnt[name_str].end = true;
 
@@ -267,8 +267,12 @@ int ncclAddTrace(const char *name, int pid){
     }
     pthread_mutex_unlock(&ncclDebugLock);
     return 0;
-  } else {
+  } else if (mark){
+    // for each slice, mark is false, we do not increase the tensor cnt
+    // only when the tensor has been done, mark is set true
     trace_name_cnt[name_str].cnt += 1;
+    pthread_mutex_unlock(&ncclDebugLock);
+    return 0;
   }
 
   auto now = std::chrono::system_clock::now();
@@ -341,7 +345,7 @@ void ncclOutputTrace() {
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
-  printf("output nccl trace (byteprofile)");
+  printf("byteprofile output nccl trace to %s\n", ByteProfilePath);
 }
 
 bool isBPF_ON(int rank) {
