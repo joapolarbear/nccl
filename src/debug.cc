@@ -197,7 +197,7 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
 /** For byteprofile
  *
 */
-void ncclTimelineInit(int rank) {
+void ncclTimelineInit(int local_rank) {
   pthread_mutex_lock(&ncclDebugLock);
   if (isTraceOn >= 0) {
     pthread_mutex_unlock(&ncclDebugLock);
@@ -216,7 +216,7 @@ void ncclTimelineInit(int rank) {
 
     const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
-                   "%s/%d/comm_detail.json", ncclByteProfileDir, rank);
+                   "%s/%d/comm_detail.json", ncclByteProfileDir, local_rank);
     printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
     ncclParseFileName(ByteProfilePath, &bpfFile);
   } else {
@@ -226,12 +226,22 @@ void ncclTimelineInit(int rank) {
   pthread_mutex_unlock(&ncclDebugLock);
 }
 
-int ncclAddTrace(const char *name, int pid, bool mark){
-  if (isTraceOn == -1) ncclTimelineInit(pid);
-  if (bpfFile == NULL) return 0;
+/** There may be some trival tensors which will only be transfered for
+ * one or twcie (some small number). To avoid waiting for these tensors
+ * to reach ncclByteProfileEnd, set a threashold, if the difference is 
+ * too large, just ignore these tensors.
+*/
+bool ncclIsNeedArrive(int cnt) {
+  if ((ncclByteProfileEnd - cnt) > (ncclByteProfileEnd - ncclByteProfileStart) / 2) {
+    return false;
+  } else {
+    return true;
+  }
+}
 
-  // TODO (huhanpeng): delete garbel code
-  if (!strstr(name, "horovod")) return 0;
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark){
+  if (isTraceOn == -1) ncclTimelineInit(local_rank);
+  if (bpfFile == NULL) return 0;
 
   pthread_mutex_lock(&ncclDebugLock);
 
@@ -255,8 +265,9 @@ int ncclAddTrace(const char *name, int pid, bool mark){
 
       bool all_arrive = true;
       for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
-        if (!it->second.end) {
+        if (!it->second.end && ncclIsNeedArrive((int)it->second.cnt)) {
           all_arrive = false;
+          // printf("%s wait for %s\n", ByteProfilePath, it->first.c_str());
           break;
         }
       }
@@ -282,7 +293,7 @@ int ncclAddTrace(const char *name, int pid, bool mark){
 
   ncclTrace *p_trace = (ncclTrace *)malloc(sizeof(ncclTrace));
   char debugFn[PATH_MAX+1];
-  snprintf(debugFn, PATH_MAX, "comm_detail_%d", pid);
+  snprintf(debugFn, PATH_MAX, "comm_detail_r%d_lr%d", rank, local_rank);
   strcpy(p_trace->name, name);
   strcpy(p_trace->pid, debugFn);
   strcpy(p_trace->tid, "none");
@@ -348,8 +359,8 @@ void ncclOutputTrace() {
   printf("byteprofile output nccl trace to %s\n", ByteProfilePath);
 }
 
-bool isBPF_ON(int rank) {
-  if (isTraceOn == -1) ncclTimelineInit(rank);
+bool isBPF_ON(int local_rank) {
+  if (isTraceOn == -1) ncclTimelineInit(local_rank);
   return isTraceOn == 1;
 }
 
