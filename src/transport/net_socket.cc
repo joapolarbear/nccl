@@ -113,6 +113,8 @@ struct ncclSocketRequest {
   struct ncclSocketComm* comm;
   struct ncclSocketTask* tasks[MAX_SOCKETS];
   int nSubs;
+  // for byteprofile
+  long long start_t;
 };
 
 struct ncclSocketTaskQueue {
@@ -317,6 +319,10 @@ ncclResult_t ncclSocketGetRequest(struct ncclSocketComm* comm, int op, void* dat
       r->used = 1;
       r->comm = comm;
       r->nSubs = 0;
+
+      // for byteprofile
+      ncclGetCurTime(&r->start_t);
+
       *req = r;
       return ncclSuccess;
     }

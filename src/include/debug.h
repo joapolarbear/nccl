@@ -28,8 +28,9 @@ extern FILE *ncclDebugFile;
 extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark);
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t);
 void ncclOutputTrace();
+void ncclGetCurTime(long long *ret);
 bool isBPF_ON(int rank);
 
 #define ENABLE_TRACE

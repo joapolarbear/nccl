@@ -253,6 +253,8 @@ struct ncclIbRequest {
   int done;
   int size;
   int free;
+  // for byteprofile
+  long long start_t;
 };
 
 struct ncclIbListenComm {
@@ -531,6 +533,10 @@ ncclResult_t ncclIbGetRequest(struct ncclIbRequest* reqs, struct ncclIbRequest**
       r->done = 0;
       r->size = -1;
       r->free = 0;
+
+      // for byteprofile
+      ncclGetCurTime(&r->start_t);
+
       *req = r;
       return ncclSuccess;
     }

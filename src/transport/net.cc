@@ -329,7 +329,7 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
         int buffSlot = args->head%NCCL_STEPS;
         NCCLCHECK(ncclNetTest(args->requests[buffSlot], &done, NULL));
         if (done) {
-          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false);
+          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, args->requests[buffSlot].start_t);
           args->head += args->sliceSteps;
           resources->hostSendMem->head = args->head;
           args->idle = 0;
@@ -340,7 +340,7 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
-      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true);
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0);
     }
   }
   return ncclSuccess;
@@ -381,7 +381,7 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
         int done, size;
         NCCLCHECK(ncclNetTest(args->requests[buffSlot], &done, &size));
         if (done) {
-          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false);
+          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, args->requests[buffSlot].start_t);
           args->head += args->sliceSteps;
           if (args->protocol == NCCL_PROTO_SIMPLE) {
             if (resources->useGdr) ncclNetFlush(resources->netRecvComm, localBuff+buffSlot*stepSize, size, mhandle);
@@ -395,7 +395,7 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
-      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true);
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0);
     }
   }
   return ncclSuccess;

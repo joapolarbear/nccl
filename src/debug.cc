@@ -239,7 +239,15 @@ bool ncclIsNeedArrive(int cnt) {
   }
 }
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark){
+void ncclGetCurTime(long long *ret) {
+  auto now = std::chrono::system_clock::now();
+  auto duration = now.time_since_epoch();
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+  auto cur_t = (long long)(us.count());
+  *ret = cur_t;
+}
+
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t){
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL) return 0;
 
@@ -286,10 +294,8 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark){
     return 0;
   }
 
-  auto now = std::chrono::system_clock::now();
-  auto duration = now.time_since_epoch();
-  auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
-  auto cur_t = (long long)(us.count());
+  long long cur_t;
+  ncclGetCurTime(&cur_t)
 
   ncclTrace *p_trace = (ncclTrace *)malloc(sizeof(ncclTrace));
   char debugFn[PATH_MAX+1];
@@ -299,14 +305,15 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark){
   strcpy(p_trace->tid, "none");
 
   if (nccl_traces == NULL) {
-    p_trace->ts = cur_t;
-    p_trace->dur = 0;
+    p_trace->ts = start_t;
+    p_trace->dur = cur_t - p_trace->ts;
     p_trace->prev = NULL;
     p_trace->next = NULL;
     nccl_traces = p_trace;
     nccl_last_trace = p_trace;
   } else {
-    p_trace->ts = nccl_last_trace->ts + nccl_last_trace->dur;
+    auto last_ent_t = nccl_last_trace->ts + nccl_last_trace->dur
+    p_trace->ts = (start_t > last_ent_t) ? start_t : last_ent_t;
     p_trace->dur = cur_t - p_trace->ts;
     p_trace->prev = nccl_last_trace;
     p_trace->next = NULL;
