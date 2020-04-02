@@ -51,7 +51,7 @@ typedef struct {
   ncclResult_t (*flush)(void* recvComm, void* data, int size);
   // Test whether a request is complete. If size is not NULL, it returns the
   // number of bytes sent/received.
-  ncclResult_t (*test)(void* request, int* done, int* size);
+  ncclResult_t (*test)(void* request, int* done, int* size, long long *start_t);
   // Close and free send/recv comm objects
   ncclResult_t (*closeSend)(void* sendComm);
   ncclResult_t (*closeRecv)(void* recvComm);
@@ -94,7 +94,7 @@ typedef struct {
   ncclResult_t (*flush)(void* recvComm, void* data, int size, void* mhandle);
   // Test whether a request is complete. If size is not NULL, it returns the
   // number of bytes sent/received.
-  ncclResult_t (*test)(void* request, int* done, int* size);
+  ncclResult_t (*test)(void* request, int* done, int* size, long long *start_t);
   // Close and free send/recv comm objects
   ncclResult_t (*closeSend)(void* sendComm);
   ncclResult_t (*closeRecv)(void* recvComm);

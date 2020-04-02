@@ -366,7 +366,7 @@ ncclResult_t ncclSocketGetTask(struct ncclSocketComm* comm, int op, void* data, 
   return ncclInternalError;
 }
 
-ncclResult_t ncclSocketTest(void* request, int* done, int* size) {
+ncclResult_t ncclSocketTest(void* request, int* done, int* size, long long *start_t) {
   *done = 0;
   struct ncclSocketRequest *r = (struct ncclSocketRequest*)request;
   if (r == NULL) {
@@ -413,6 +413,7 @@ ncclResult_t ncclSocketTest(void* request, int* done, int* size) {
       }
       if (nCompleted == r->nSubs) {
         if (size) *size = r->size;
+        if (start_t) *start_t = r->start_t;
         *done = 1;
         r->used = 0;
         for (int i=0; i<r->nSubs; i++) {

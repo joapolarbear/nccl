@@ -21,8 +21,8 @@ int isTraceOn = -1;
 int ncclByteProfileStart = -1, ncclByteProfileEnd = -1;
 char ByteProfilePath[PATH_MAX+1] = "";
 FILE *bpfFile = NULL;
-ncclTrace* nccl_traces = NULL;
-ncclTrace* nccl_last_trace = NULL;
+ncclTrace* nccl_traces_head = NULL;
+ncclTrace* nccl_traces_end = NULL;
 std::unordered_map<std::string, struct pair_uint64_t_bool> trace_name_cnt;
 
 int ncclParseFileName(const char *FileEnv, FILE **fd) {
@@ -295,7 +295,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   }
 
   long long cur_t;
-  ncclGetCurTime(&cur_t)
+  ncclGetCurTime(&cur_t);
 
   ncclTrace *p_trace = (ncclTrace *)malloc(sizeof(ncclTrace));
   char debugFn[PATH_MAX+1];
@@ -304,28 +304,28 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   strcpy(p_trace->pid, debugFn);
   strcpy(p_trace->tid, "none");
 
-  if (nccl_traces == NULL) {
+  if (nccl_traces_head == NULL) {
     p_trace->ts = start_t;
     p_trace->dur = cur_t - p_trace->ts;
     p_trace->prev = NULL;
     p_trace->next = NULL;
-    nccl_traces = p_trace;
-    nccl_last_trace = p_trace;
+    nccl_traces_head = p_trace;
+    nccl_traces_end = p_trace;
   } else {
-    auto last_ent_t = nccl_last_trace->ts + nccl_last_trace->dur
+    auto last_ent_t = nccl_traces_end->ts + nccl_traces_end->dur;
     p_trace->ts = (start_t > last_ent_t) ? start_t : last_ent_t;
     p_trace->dur = cur_t - p_trace->ts;
-    p_trace->prev = nccl_last_trace;
+    p_trace->prev = nccl_traces_end;
     p_trace->next = NULL;
-    nccl_last_trace->next = p_trace;
-    nccl_last_trace = p_trace;
+    nccl_traces_end->next = p_trace;
+    nccl_traces_end = p_trace;
   }
   pthread_mutex_unlock(&ncclDebugLock);
   return 0;
 }
 
 void ncclOutputTrace() {
-  ncclTrace *p_trace = nccl_traces;
+  ncclTrace *p_trace = nccl_traces_head;
   while (p_trace != NULL) {
     if (p_trace->prev == NULL){
       // the first trace

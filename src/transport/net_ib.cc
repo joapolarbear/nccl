@@ -575,7 +575,7 @@ ncclResult_t ncclRecvCheck(struct ncclIbRecvComm* comm) {
   return ncclSuccess;
 }
 
-ncclResult_t ncclIbTest(void* request, int* done, int* size);
+ncclResult_t ncclIbTest(void* request, int* done, int* size, long long *start_t);
 
 #define REG_ALIGN (4096)
 
@@ -771,13 +771,13 @@ ncclResult_t ncclIbFlush(void* recvComm, void* data, int size, void* mhandle) {
   int done = 0;
   // Block until the recv request is done
   while (done == 0) {
-    NCCLCHECK((ncclResult_t)ncclIbTest(req, &done, NULL));
+    NCCLCHECK((ncclResult_t)ncclIbTest(req, &done, NULL, NULL));
   }
 
   return ncclSuccess;
 }
 
-ncclResult_t ncclIbTest(void* request, int* done, int* size) {
+ncclResult_t ncclIbTest(void* request, int* done, int* size, long long *start_t) {
 
   //huhanpeng
   BPF_TRACE("ncclIbTest starts");
@@ -789,6 +789,7 @@ ncclResult_t ncclIbTest(void* request, int* done, int* size) {
     if (r->done == 1) {
       *done = 1;
       if (size) *size = r->size;
+      if (start_t) *start_t = r->start_t;
       // Set ->used to 0 to free the request.
       r->used = 0;
       return ncclSuccess;
