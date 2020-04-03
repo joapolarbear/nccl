@@ -427,6 +427,7 @@ ncclResult_t ncclSocketTest(void* request, int* done, int* size, long long *star
       }
       if (r->offset == r->size) {
         if (size) *size = r->size;
+        if (start_t) *start_t = r->start_t;
         *done = 1;
         r->used = 0;
       }
