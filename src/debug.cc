@@ -212,7 +212,7 @@ void ncclTimelineInit(int local_rank) {
     isTraceOn = 1;
     ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
     ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
-    printf("%s Timeline rang:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
+    printf("%s Timeline Range:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
 
     const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
@@ -232,10 +232,22 @@ void ncclTimelineInit(int local_rank) {
  * too large, just ignore these tensors.
 */
 bool ncclIsNeedArrive(int cnt) {
-  if ((ncclByteProfileEnd - cnt) > (ncclByteProfileEnd - ncclByteProfileStart) / 2) {
+  float THREASHOLD = 5;
+  if (cnt < THREASHOLD) {
     return false;
-  } else {
-    return true;
+  } 
+  return true;
+  // if ((float)(ncclByteProfileEnd - cnt) > (float)(ncclByteProfileEnd * 0.8)) {
+  //   return false;
+  // } else {
+  //   return true;
+  // }
+}
+
+void ncclPrintCnt() {
+  printf("%s ncclPrintCnt \n", ByteProfilePath);
+  for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
+    printf("ncclPrintCnt Name:%s Cnt:%lu\n", it->first.c_str(), it->second.cnt);
   }
 }
 
@@ -267,7 +279,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
     printf("%s ncclAddTrace adds new name %s\n", ByteProfilePath, name);
   } 
   if (trace_name_cnt[name_str].cnt >= ncclByteProfileEnd){
-    if (bpfFile != NULL){
+    if (!trace_name_cnt[name_str].end){
       // the first time larger than ncclByteProfileEnd
       trace_name_cnt[name_str].end = true;
 
@@ -281,18 +293,13 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       }
       if (all_arrive) {
         // all recorded tensors are ready to output
+        ncclPrintCnt();
         ncclOutputTrace();
       }
     }
     pthread_mutex_unlock(&ncclDebugLock);
     return 0;
-  } else if (mark){
-    // for each slice, mark is false, we do not increase the tensor cnt
-    // only when the tensor has been done, mark is set true
-    trace_name_cnt[name_str].cnt += 1;
-    pthread_mutex_unlock(&ncclDebugLock);
-    return 0;
-  }
+  } 
 
   long long cur_t;
   ncclGetCurTime(&cur_t);
@@ -304,22 +311,45 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   strcpy(p_trace->pid, debugFn);
   strcpy(p_trace->tid, "none");
 
-  if (nccl_traces_head == NULL) {
-    p_trace->ts = start_t;
-    p_trace->dur = cur_t - p_trace->ts;
-    p_trace->prev = NULL;
-    p_trace->next = NULL;
-    nccl_traces_head = p_trace;
-    nccl_traces_end = p_trace;
+  if (mark) {
+    // for each slice, mark is false, we do not increase the tensor cnt, but add traces
+    // only when the tensor has been done, mark is set true, but no traces is created
+    trace_name_cnt[name_str].cnt += 1;
+    p_trace->ph = 'i';
+    p_trace->ts = cur_t;
+    p_trace->dur = 0;
+    if (nccl_traces_head == NULL) {
+      p_trace->prev = NULL;
+      p_trace->next = NULL;
+      nccl_traces_head = p_trace;
+      nccl_traces_end = p_trace;
+    } else {
+      p_trace->prev = nccl_traces_end;
+      p_trace->next = NULL;
+      nccl_traces_end->next = p_trace;
+      nccl_traces_end = p_trace;
+    }
+
   } else {
-    auto last_ent_t = nccl_traces_end->ts + nccl_traces_end->dur;
-    p_trace->ts = (start_t > last_ent_t) ? start_t : last_ent_t;
-    p_trace->dur = cur_t - p_trace->ts;
-    p_trace->prev = nccl_traces_end;
-    p_trace->next = NULL;
-    nccl_traces_end->next = p_trace;
-    nccl_traces_end = p_trace;
+    p_trace->ph = 'X';
+    if (nccl_traces_head == NULL) {
+      p_trace->ts = start_t;
+      p_trace->dur = cur_t - p_trace->ts;
+      p_trace->prev = NULL;
+      p_trace->next = NULL;
+      nccl_traces_head = p_trace;
+      nccl_traces_end = p_trace;
+    } else {
+      auto last_ent_t = nccl_traces_end->ts + nccl_traces_end->dur;
+      p_trace->ts = (start_t > last_ent_t) ? start_t : last_ent_t;
+      p_trace->dur = cur_t - p_trace->ts;
+      p_trace->prev = nccl_traces_end;
+      p_trace->next = NULL;
+      nccl_traces_end->next = p_trace;
+      nccl_traces_end = p_trace;
+    }
   }
+  
   pthread_mutex_unlock(&ncclDebugLock);
   return 0;
 }
@@ -334,9 +364,10 @@ void ncclOutputTrace() {
       fprintf(bpfFile, ",\n");
     }
 
-    fprintf(bpfFile,
+    if (p_trace->ph == 'X') {
+      fprintf(bpfFile,
           "        {\n"
-          "            \"ph\": \"X\",\n"
+          "            \"ph\": \"%c\",\n"
           "            \"args\": {\n"
           "                \"name\": \"%s\"\n"
           "            },\n"
@@ -347,12 +378,34 @@ void ncclOutputTrace() {
           "            \"tid\": \"%s\",\n"
           "            \"cat\": \"Comm\"\n"
           "        }", 
+          p_trace->ph,
           p_trace->name, 
           p_trace->pid, 
           p_trace->name, 
           p_trace->ts, 
           p_trace->dur, 
           p_trace->tid);
+    } else if (p_trace->ph == 'i') {
+      fprintf(bpfFile,
+          "        {\n"
+          "            \"ph\": \"%c\",\n"
+          "            \"args\": {\n"
+          "                \"name\": \"%s\"\n"
+          "            },\n"
+          "            \"pid\": \"%s\",\n"
+          "            \"name\": \"%s\",\n"
+          "            \"ts\": %lld,\n"
+          "            \"tid\": \"%s\",\n"
+          "            \"cat\": \"Comm\"\n"
+          "        }", 
+          p_trace->ph,
+          p_trace->name, 
+          p_trace->pid, 
+          p_trace->name, 
+          p_trace->ts,  
+          p_trace->tid);
+    }
+    
     fflush(bpfFile);
     p_trace = p_trace->next;
   }

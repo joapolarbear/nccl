@@ -42,6 +42,7 @@ typedef struct ncclTraceT {
   char tid[MAX_TRACE_NAME_LEN];
   long long ts = 0;
   long long dur = 0;
+  char ph;
   struct ncclTraceT* prev = NULL;
   struct ncclTraceT* next = NULL;
 } ncclTrace;
