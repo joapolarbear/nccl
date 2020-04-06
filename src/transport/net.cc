@@ -230,17 +230,13 @@ ncclResult_t netRecvFree(void* transportResources) {
 
 
 // Add for byteprofile timeline
-uint64_t netTailToSuffix(struct ncclProxyArgs* args) {
-  uint64_t original_head = args->end - args->nsteps;
-  uint64_t cur_step = args->head - original_head;
-  int sliceSteps = args->sliceSteps;
-  return (uint64_t)(cur_step / sliceSteps);
+void netParseSliceId(struct ncclProxyArgs* args, ncclSliceInfo *sliceInfo) {
+  int original_head = args->end - args->nsteps;
+  int cur_step = args->head - original_head;
+  sliceInfo->chunkId = cur_step / args->chunkSteps;
+  sliceInfo->sliceId = (cur_step % args->chunkSteps) / args->connector->comm->nChannels;
+  sliceInfo->channelId = args->channel->id;
 }
-int netChannelId(struct ncclProxyArgs* args) {
-  int cid = args->channel->id;
-  return cid;
-}
-
 
 ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
   //huhanpeng
@@ -344,9 +340,9 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
         int buffSlot = args->head%NCCL_STEPS;
         NCCLCHECK(ncclNetTest(args->requests[buffSlot], &done, NULL, &start_t));
         if (done) {
-          uint64_t suffix = netTailToSuffix(args);
-          int cid = netChannelId(args);
-          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t, suffix, cid);
+          ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
+          netParseSliceId(args, sliceInfo);
+          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t, sliceInfo);
           args->head += args->sliceSteps;
           resources->hostSendMem->head = args->head;
           args->idle = 0;
@@ -357,9 +353,9 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
-      uint64_t suffix = netTailToSuffix(args);
-      int cid = netChannelId(args);
-      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0, suffix, cid);
+      ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
+      netParseSliceId(args, sliceInfo);
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0, sliceInfo);
     }
   }
   return ncclSuccess;
@@ -401,9 +397,9 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
         long long start_t;
         NCCLCHECK(ncclNetTest(args->requests[buffSlot], &done, &size, &start_t));
         if (done) {
-          uint64_t suffix = netTailToSuffix(args);
-          int cid = netChannelId(args);
-          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t, suffix, cid);
+          ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
+          netParseSliceId(args, sliceInfo);
+          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t, sliceInfo);
           args->head += args->sliceSteps;
           if (args->protocol == NCCL_PROTO_SIMPLE) {
             if (resources->useGdr) ncclNetFlush(resources->netRecvComm, localBuff+buffSlot*stepSize, size, mhandle);
@@ -417,9 +413,9 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
       resources->step = args->end;
       args->idle = 0;
       args->state = ncclProxyOpNone;
-      uint64_t suffix = netTailToSuffix(args);
-      int cid = netChannelId(args);
-      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0, suffix, cid);
+      ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
+      netParseSliceId(args, sliceInfo);
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0, sliceInfo);
     }
   }
   return ncclSuccess;
