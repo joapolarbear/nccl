@@ -109,7 +109,10 @@ static ncclResult_t SaveProxy(int peer, struct ncclProxyArgs* args) {
   op->progress = connector->transportComm->proxy;
   op->state = ncclProxyOpReady;
   strcat(op->unique_name, type == proxyRecv ? ".RECV" : ".SEND");
-  TRACE(NCCL_ALL, "SaveProxy addr:%p, name:%s", op, op->unique_name);
+  TRACE(NCCL_ALL, "SaveProxy from %d to %d, addr:%p, name:%s", 
+        type == proxyRecv ? peer : connector->comm->rank,
+        type == proxyRecv ? connector->comm->rank : peer,
+        op, op->unique_name);
   ProxyAppend(connector, op);
   return ncclSuccess;
 }
@@ -207,7 +210,7 @@ void* persistentThread(void *comm_) {
 
     if (op == NULL) TRACE(NCCL_ALL, "persistentThread: next op, name: NULL, state: NULL, addr: NULL");
     else TRACE(NCCL_ALL, "persistentThread: next op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
-    
+
     if (op == state->ops) {
       if (idle == 1) {
         if (++idleSpin == 10) {

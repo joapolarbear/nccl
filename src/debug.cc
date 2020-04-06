@@ -259,7 +259,7 @@ void ncclGetCurTime(long long *ret) {
   *ret = cur_t;
 }
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t){
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, uint64_t suffix){
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL) return 0;
 
@@ -310,6 +310,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   strcpy(p_trace->name, name);
   strcpy(p_trace->pid, debugFn);
   strcpy(p_trace->tid, "none");
+  p_trace->suffix = suffix;
 
   if (mark) {
     // for each slice, mark is false, we do not increase the tensor cnt, but add traces
@@ -369,7 +370,7 @@ void ncclOutputTrace() {
           "        {\n"
           "            \"ph\": \"%c\",\n"
           "            \"args\": {\n"
-          "                \"name\": \"%s\"\n"
+          "                \"name\": \"%s\",\"stepN\": \"%lu\"\n"
           "            },\n"
           "            \"pid\": \"%s\",\n"
           "            \"name\": \"%s\",\n"
@@ -379,7 +380,7 @@ void ncclOutputTrace() {
           "            \"cat\": \"Comm\"\n"
           "        }", 
           p_trace->ph,
-          p_trace->name, 
+          p_trace->name, p_trace->suffix,
           p_trace->pid, 
           p_trace->name, 
           p_trace->ts, 
@@ -390,16 +391,17 @@ void ncclOutputTrace() {
           "        {\n"
           "            \"ph\": \"%c\",\n"
           "            \"args\": {\n"
-          "                \"name\": \"%s\"\n"
+          "                \"name\": \"%s\",\"stepN\": \"%lu\"\n"
           "            },\n"
           "            \"pid\": \"%s\",\n"
           "            \"name\": \"%s\",\n"
           "            \"ts\": %lld,\n"
           "            \"tid\": \"%s\",\n"
-          "            \"cat\": \"Comm\"\n"
+          "            \"cat\": \"Comm\",\n"
+          "            \"s\": \"g\"\n"
           "        }", 
           p_trace->ph,
-          p_trace->name, 
+          p_trace->name, p_trace->suffix, 
           p_trace->pid, 
           p_trace->name, 
           p_trace->ts,  

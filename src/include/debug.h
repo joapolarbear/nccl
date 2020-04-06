@@ -18,6 +18,7 @@
 #include "nccl_net.h"
 #include <unordered_map>
 #include <string>
+#include <stdarg.h>
 
 #define gettid() (pid_t) syscall(SYS_gettid)
 
@@ -28,7 +29,7 @@ extern FILE *ncclDebugFile;
 extern ncclResult_t getHostName(char* hostname, int maxlen, const char delim);
 
 void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *filefunc, int line, const char *fmt, ...);
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t);
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, uint64_t suffix);
 void ncclOutputTrace();
 void ncclGetCurTime(long long *ret);
 bool isBPF_ON(int rank);
@@ -43,6 +44,7 @@ typedef struct ncclTraceT {
   long long ts = 0;
   long long dur = 0;
   char ph;
+  uint64_t suffix;
   struct ncclTraceT* prev = NULL;
   struct ncclTraceT* next = NULL;
 } ncclTrace;
