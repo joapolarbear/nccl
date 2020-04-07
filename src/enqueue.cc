@@ -257,8 +257,9 @@ static ncclResult_t getAlgoInfo(struct ncclInfo* info) {
     }
   }
   if (info->algorithm == -1 || info->protocol == -1) {
-    WARN("Error : no algorithm/protocol available");
-    return ncclInternalError;
+    WARN("Error : no algorithm/protocol available, take NCCL_ALGO_RING/NCCL_PROTO_SIMPLE as default");
+    info->algorithm = NCCL_ALGO_RING;
+    info->protocol = NCCL_PROTO_SIMPLE;
   }
   //if (comm->rank == 0) INFO(NCCL_COLL, "%ld Bytes -> Algo %d proto %d time %d", info->nBytes, info->algorithm, info->protocol, minTime);
   TRACE(NCCL_COLL, "%ld Bytes -> Algo %d proto %d time %f", info->nBytes, info->algorithm, info->protocol, minTime);
