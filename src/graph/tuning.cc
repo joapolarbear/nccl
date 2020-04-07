@@ -155,6 +155,10 @@ ncclResult_t ncclSetThresholds(struct ncclComm* comm, int minCompCap, int maxCom
       pEnable = (graphs[a]->type <= LINK_PCI) && graphs[a]->nvlink && minCompCap == 70 && maxCompCap == 70 ? 1 : 0;
     }
     if (pEnable == 0 || algoEnable[a] == 0) comm->bandwidths[c][a][p] = 0;
+    // add for byteprofile
+    if (a == NCCL_ALGO_TREE && algoEnable[a] == 1) {
+      comm->bandwidths[c][a][p] = 1e6;
+    }
   }
 
   if (comm->rank == 0) {

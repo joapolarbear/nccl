@@ -235,26 +235,6 @@ static float treeCorrectionFactor[NCCL_NUM_PROTOCOLS][22] = {
   {  .9,  .9,  .9,  .9,  .9,  .9,  .9,  .8,  .7,  .6,  .6,  .5,  .5,  .5,  .5,  .5,  .5,  .6,  .6,  .7,  .8,  .9 }
 };
 
-ncclResult_t parseList(const char* str, const char* elems[], int nelems, int* list) {
-  int def, set;
-  if (str[0] == '^') {
-    def = 1; set = 0; str++;
-  } else {
-    def = 0; set = 1;
-  }
-  for (int i=0; i<nelems; i++) list[i] = def;
-  char* tokStr = strdup(str);
-  char* tmpStr;
-  char* token = strtok_r(tokStr, ",", &tmpStr);
-  while (token) {
-    for (int i=0; i<nelems; i++)
-      if (strcasecmp(token, elems[i]) == 0) list[i] = set;
-    token = strtok_r(NULL, ",", &tmpStr);
-  }
-  free(tokStr);
-  return ncclSuccess;
-}
-
 static ncclResult_t getAlgoInfo(struct ncclInfo* info) {
   struct ncclComm* comm = info->comm;
   float minTime = 3600000.0; // Hopefully no operation will take an hour to complete.
@@ -277,17 +257,8 @@ static ncclResult_t getAlgoInfo(struct ncclInfo* info) {
     }
   }
   if (info->algorithm == -1 || info->protocol == -1) {
-    const char *algoStr = getenv("NCCL_ALGO");
-    const char* ncclAlgoStr[] = { "Tree", "Ring" };
-    int algoEnable[NCCL_NUM_ALGORITHMS] = { 1, 1 };
-    if (algoStr) NCCLCHECK(parseList(algoStr, ncclAlgoStr, NCCL_NUM_ALGORITHMS, algoEnable));
-    if (algoEnable[NCCL_ALGO_TREE] == 1) {
-      info->algorithm = NCCL_ALGO_TREE;
-      info->protocol  = NCCL_PROTO_SIMPLE;
-    } else {
-      WARN("Error : no algorithm/protocol available");
-      return ncclInternalError;
-    }
+    WARN("Error : no algorithm/protocol available");
+    return ncclInternalError;
   }
   //if (comm->rank == 0) INFO(NCCL_COLL, "%ld Bytes -> Algo %d proto %d time %d", info->nBytes, info->algorithm, info->protocol, minTime);
   TRACE(NCCL_COLL, "%ld Bytes -> Algo %d proto %d time %f", info->nBytes, info->algorithm, info->protocol, minTime);

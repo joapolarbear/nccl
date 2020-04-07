@@ -109,7 +109,7 @@ static ncclResult_t SaveProxy(int peer, struct ncclProxyArgs* args) {
   op->progress = connector->transportComm->proxy;
   op->state = ncclProxyOpReady;
   strcat(op->unique_name, type == proxyRecv ? ".RECV" : ".SEND");
-  TRACE(NCCL_ALL, "SaveProxy from %d to %d, addr:%p, name:%s", 
+  TRACE(NCCL_COLL, "SaveProxy from %d to %d, addr:%p, name:%s", 
         type == proxyRecv ? peer : connector->comm->rank,
         type == proxyRecv ? connector->comm->rank : peer,
         op, op->unique_name);
@@ -166,7 +166,7 @@ void* persistentThread(void *comm_) {
     
     op->idle = 0;
 
-    TRACE(NCCL_ALL, "persistentThread: execute op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
+    TRACE(NCCL_COLL, "persistentThread: execute op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
 
     // opCount >= lastOpCount are part of an ongoing GroupStart/GroupEnd that hasn't started
     // yet and might be cancelled before they even start. Hold on on those.
@@ -208,8 +208,8 @@ void* persistentThread(void *comm_) {
     }
     op = next;
 
-    if (op == NULL) TRACE(NCCL_ALL, "persistentThread: next op, name: NULL, state: NULL, addr: NULL");
-    else TRACE(NCCL_ALL, "persistentThread: next op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
+    if (op == NULL) TRACE(NCCL_COLL, "persistentThread: next op, name: NULL, state: NULL, addr: NULL");
+    else TRACE(NCCL_COLL, "persistentThread: next op, name: %s, state: %d, addr: %p", op->unique_name, op->state, op);
 
     if (op == state->ops) {
       if (idle == 1) {
