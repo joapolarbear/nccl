@@ -621,6 +621,7 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, ncclUniqueId* comm
   }
   line[1023] = '\0';
   INFO(NCCL_INIT, "Trees%s", line);
+  ncclSaveTopo("Trees%s", line);
 
   // Connect with prev/next for each ring
   struct ncclConnect *connect;

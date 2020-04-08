@@ -39,6 +39,8 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
 void ncclOutputTrace();
 void ncclGetCurTime(long long *ret);
 bool isBPF_ON(int rank);
+void ncclSaveTopo(const char *fmt, ...);
+
 
 #define ENABLE_TRACE
 
@@ -78,6 +80,7 @@ extern thread_local int ncclDebugNoWarn;
 // for byteprofile
 #define BPF_TRACE(...) ncclDebugLog(NCCL_LOG_BPF_TRACE, NCCL_ALL, __FILE__, __LINE__, __VA_ARGS__) 
 #define BPF_TIMELINE(...) ncclAddTrace(__VA_ARGS__)
+#define BPF_INFO_DUMP(FLAGS, ...) INFO((FLAGS), __VA_ARGS__); ncclSaveTopo(__VA_ARGS__) 
 
 #ifdef ENABLE_TRACE
 #define TRACE(FLAGS, ...) ncclDebugLog(NCCL_LOG_TRACE, (FLAGS), __func__, __LINE__, __VA_ARGS__)

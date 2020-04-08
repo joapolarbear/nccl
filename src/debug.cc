@@ -24,6 +24,7 @@ FILE *bpfFile = NULL;
 ncclTrace* nccl_traces_head = NULL;
 ncclTrace* nccl_traces_end = NULL;
 std::unordered_map<std::string, struct pair_uint64_t_bool> trace_name_cnt;
+std::unordered_map<std::string, std::unordered_map<int, std::string>> topo;
 
 int ncclParseFileName(const char *FileEnv, FILE **fd) {
   int c = 0;
@@ -226,6 +227,35 @@ void ncclTimelineInit(int local_rank) {
   pthread_mutex_unlock(&ncclDebugLock);
 }
 
+void ncclSaveTopo(const char *fmt, ...) {
+  char buffer[1024];
+  va_list vargs;
+  va_start(vargs, fmt);
+  (void) vsnprintf(buffer, sizeof(buffer), fmt, vargs);
+  va_end(vargs);
+  std::string topo_info(buffer);
+  std::string algo = topo_info.substr(0, 4);
+
+  std::string algorithm;
+  int channelId;
+  if (strcasecmp(algo.c_str(), "TREE") == 0) {
+    algorithm = std::string("Tree");
+    // if (topo.find(algorithm) == topo.end()) {
+    topo[algorithm][-1] = topo_info.substr(6);
+  } else if (strcasecmp(algo.c_str(), "RING") == 0) {
+    algorithm = std::string("Ring");
+    channelId = std::stoi(topo_info.substr(5, 2));
+    // if (topo.find(algorithm) == topo.end() || topo[algorithm].find(channelId) == topo[algorithm].end()) {
+    if (topo[algorithm][channelId].length() == 0) {
+      topo[algorithm][channelId] = topo_info.substr(10);
+    } else {
+      topo[algorithm][channelId] += "," + topo_info.substr(10);
+    }
+  } else {
+    return;
+  } 
+}
+
 /** There may be some trival tensors which will only be transfered for
  * one or twcie (some small number). To avoid waiting for these tensors
  * to reach ncclByteProfileEnd, set a threashold, if the difference is 
@@ -276,7 +306,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
   if (finder == trace_name_cnt.end()) {
     trace_name_cnt[name_str] = {0, false};
-    printf("%s ncclAddTrace adds new name %s\n", ByteProfilePath, name);
+    // printf("%s ncclAddTrace adds new name %s\n", ByteProfilePath, name);
   } 
   if (trace_name_cnt[name_str].cnt >= ncclByteProfileEnd){
     if (!trace_name_cnt[name_str].end){
@@ -426,9 +456,24 @@ void ncclOutputTrace() {
     p_trace = p_trace->next;
   }
   fprintf(bpfFile, "\n"
-     "    ],\n"
-     "    \"displayTimeUnit\": \"ms\"\n"
-     "}\n");
+      "    ],\n");
+
+  // print topology
+  for(auto it = topo.begin(); it != topo.end(); ++ it) {
+    // for an algorithm
+    fprintf(bpfFile, "    \"%s\": {", it->first.c_str());
+    for (auto it2 = it->second.begin(); it2 != it->second.end(); ++it2) {
+      if (it2 != it->second.begin()) {
+        fprintf(bpfFile, ",");
+      }
+      fprintf(bpfFile, "\"%d\": \"%s\"", it2->first, it2->second.c_str());
+    }
+    fprintf(bpfFile, "},\n");
+  }
+  
+  fprintf(bpfFile,
+      "    \"displayTimeUnit\": \"ms\"\n"
+      "}\n");
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
