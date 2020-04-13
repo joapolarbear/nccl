@@ -620,8 +620,7 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, ncclUniqueId* comm
         treeDn->up, rank, treeDn->down[0], treeDn->down[1], treeDn->down[2]);
   }
   line[1023] = '\0';
-  INFO(NCCL_INIT, "Trees%s", line);
-  ncclSaveTopo("Trees%s", line);
+  BPF_INFO_DUMP(NCCL_INIT, "Trees%s", line);
 
   // Connect with prev/next for each ring
   struct ncclConnect *connect;
@@ -630,6 +629,20 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, ncclUniqueId* comm
     struct ncclChannel* channel = comm->channels+c;
     NCCLCHECK(setupChannel(comm, c, rank, nranks, rings+c*nranks));
     if (comm->nRanks == 1) continue;
+
+    BPF_INFO_DUMP(NCCL_INIT|NCCL_NET,"REALRING %02d : %d[%lx] -> %d[%lx] [receive]", 
+          channel->id, 
+          (comm->peerInfo+channel->ring.prev)->rank,
+          (comm->peerInfo+channel->ring.prev)->busId,
+          (comm->peerInfo+comm->rank)->rank, 
+          (comm->peerInfo+comm->rank)->busId);
+    BPF_INFO_DUMP(NCCL_INIT|NCCL_NET,"REALRING %02d : %d[%lx] -> %d[%lx] [send]", 
+          channel->id, 
+          (comm->peerInfo+comm->rank)->rank, 
+          (comm->peerInfo+comm->rank)->busId, 
+          (comm->peerInfo+channel->ring.next)->rank,
+          (comm->peerInfo+channel->ring.next)->busId);
+
     NCCLCHECK(p2pSetup(comm, &ringGraph, channel, 1, &channel->ring.prev, 1, &channel->ring.next));
     NCCLCHECK(p2pSetup(comm, &treeGraph, channel, NCCL_MAX_TREE_ARITY, channel->treeUp.down, 1, &channel->treeUp.up));
     NCCLCHECK(p2pSetup(comm, &treeGraph, channel, 1, &channel->treeDn.up, NCCL_MAX_TREE_ARITY, channel->treeDn.down));

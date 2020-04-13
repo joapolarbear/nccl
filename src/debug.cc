@@ -228,6 +228,8 @@ void ncclTimelineInit(int local_rank) {
 }
 
 void ncclSaveTopo(const char *fmt, ...) {
+  // RING 00 : 3[3000] -> 0[2000] [receive] via NET/Socket/0
+  // REALRING 00 : 3[3000] -> 0[2000] [receive] via NET/Socket/0
   char buffer[1024];
   va_list vargs;
   va_start(vargs, fmt);
@@ -250,6 +252,16 @@ void ncclSaveTopo(const char *fmt, ...) {
       topo[algorithm][channelId] = topo_info.substr(10);
     } else {
       topo[algorithm][channelId] += "," + topo_info.substr(10);
+    }
+  } else if (strcasecmp(algo.c_str(), "REAL") == 0) {
+    // This is the real ring used for Ring algorithm, follow the similar format like above `Ring`
+    algorithm = std::string("RealRing");
+    channelId = std::stoi(topo_info.substr(9, 2));
+    // if (topo.find(algorithm) == topo.end() || topo[algorithm].find(channelId) == topo[algorithm].end()) {
+    if (topo[algorithm][channelId].length() == 0) {
+      topo[algorithm][channelId] = topo_info.substr(14);
+    } else {
+      topo[algorithm][channelId] += "," + topo_info.substr(14);
     }
   } else {
     return;
@@ -403,9 +415,9 @@ void ncclOutputTrace() {
           "            \"ph\": \"%c\",\n"
           "            \"args\": {\n"
           "                \"name\": \"%s\",\n"
-          "                \"chunkId\": \"%d\",\n"
-          "                \"sliceId\": \"%d\",\n"
-          "                \"channelId\": \"%d\"\n"
+          "                \"chunkId\": %d,\n"
+          "                \"sliceId\": %d,\n"
+          "                \"channelId\": %d\n"
           "            },\n"
           "            \"pid\": \"%s\",\n"
           "            \"name\": \"%s\",\n"
@@ -430,9 +442,9 @@ void ncclOutputTrace() {
           "            \"ph\": \"%c\",\n"
           "            \"args\": {\n"
           "                \"name\": \"%s\",\n"
-          "                \"chunkId\": \"%d\",\n"
-          "                \"sliceId\": \"%d\",\n"
-          "                \"channelId\": \"%d\"\n"
+          "                \"chunkId\": %d,\n"
+          "                \"sliceId\": %d,\n"
+          "                \"channelId\": %d\n"
           "            },\n"
           "            \"pid\": \"%s\",\n"
           "            \"name\": \"%s\",\n"
