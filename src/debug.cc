@@ -335,7 +335,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       }
       if (all_arrive) {
         // all recorded tensors are ready to output
-        ncclPrintCnt();
+        if(ncclDebugLevel == NCCL_LOG_TRACE) ncclPrintCnt();
         ncclOutputTrace();
       }
     }
