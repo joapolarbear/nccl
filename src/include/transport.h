@@ -69,6 +69,7 @@ struct ncclProxyArgs {
 
   // Unique name for byteprofile
   char unique_name[MAX_TRACE_NAME_LEN];
+  int nstepsPerLoop;
 };
 
 struct ncclProxyPool;

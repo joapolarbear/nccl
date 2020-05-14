@@ -33,6 +33,7 @@ typedef struct ncclSliceInfoT {
   int channelId;
   int chunkId;
   int sliceId;
+  int loopId;
 } ncclSliceInfo;
 
 int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo);
@@ -56,7 +57,8 @@ typedef struct ncclTraceT {
   int channelId;
   int chunkId;
   int sliceId;
-
+  int loopId;
+  
   struct ncclTraceT* prev = NULL;
   struct ncclTraceT* next = NULL;
 } ncclTrace;

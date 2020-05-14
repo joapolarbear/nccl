@@ -233,9 +233,10 @@ ncclResult_t netRecvFree(void* transportResources) {
 void netParseSliceId(struct ncclProxyArgs* args, ncclSliceInfo *sliceInfo) {
   int original_head = args->end - args->nsteps;
   int cur_step = args->head - original_head;
-  sliceInfo->chunkId = cur_step / args->chunkSteps;
-  sliceInfo->sliceId = (cur_step % args->chunkSteps) / args->connector->comm->nChannels;
+  sliceInfo->chunkId = (cur_step / args->chunkSteps) % args->nstepsPerLoop;
+  sliceInfo->sliceId = (cur_step % args->chunkSteps) / args->sliceSteps;
   sliceInfo->channelId = args->channel->id;
+  sliceInfo->loopId = (cur_step / args->chunkSteps) / args->nstepsPerLoop;
 }
 
 ncclResult_t netSendProxy(struct ncclProxyArgs* args) {

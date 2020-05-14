@@ -355,6 +355,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   p_trace->channelId = sliceInfo->channelId;
   p_trace->chunkId = sliceInfo->chunkId;
   p_trace->sliceId = sliceInfo->sliceId;
+  p_trace->loopId = sliceInfo->loopId;
 
   if (mark) {
     // for each slice, mark is false, we do not increase the tensor cnt, but add traces
@@ -417,7 +418,8 @@ void ncclOutputTrace() {
           "                \"name\": \"%s\",\n"
           "                \"chunkId\": %d,\n"
           "                \"sliceId\": %d,\n"
-          "                \"channelId\": %d\n"
+          "                \"channelId\": %d,\n"
+          "                \"loopId\": %d\n"
           "            },\n"
           "            \"pid\": \"%s\",\n"
           "            \"name\": \"%s\",\n"
@@ -431,6 +433,7 @@ void ncclOutputTrace() {
           p_trace->chunkId, 
           p_trace->sliceId,
           p_trace->channelId,
+          p_trace->loopId,
           p_trace->pid, 
           p_trace->name, 
           p_trace->ts, 
@@ -444,7 +447,8 @@ void ncclOutputTrace() {
           "                \"name\": \"%s\",\n"
           "                \"chunkId\": %d,\n"
           "                \"sliceId\": %d,\n"
-          "                \"channelId\": %d\n"
+          "                \"channelId\": %d,\n"
+          "                \"loopId\": %d\n"
           "            },\n"
           "            \"pid\": \"%s\",\n"
           "            \"name\": \"%s\",\n"
@@ -458,6 +462,7 @@ void ncclOutputTrace() {
           p_trace->chunkId, 
           p_trace->sliceId,
           p_trace->channelId,
+          p_trace->loopId,
           p_trace->pid, 
           p_trace->name, 
           p_trace->ts,  
