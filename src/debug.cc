@@ -315,6 +315,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   } else {
     name_str = std::string(name);
   }
+  name_str += std::to_string(sliceInfo->channelId);
   std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
   if (finder == trace_name_cnt.end()) {
     trace_name_cnt[name_str] = {0, false};
@@ -341,8 +342,16 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
     }
     pthread_mutex_unlock(&ncclDebugLock);
     return 0;
-  } 
+  } else if (trace_name_cnt[name_str].cnt < ncclByteProfileStart - 1) {
+    // No need to add traces, but change the cnt if necessary
+    if (mark) {
+      trace_name_cnt[name_str].cnt += 1;
+    }
+    pthread_mutex_unlock(&ncclDebugLock);
+    return 0;
+  }
 
+  // Add traces during the iteration range
   long long cur_t;
   ncclGetCurTime(&cur_t);
 
@@ -360,6 +369,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   if (mark) {
     // for each slice, mark is false, we do not increase the tensor cnt, but add traces
     // only when the tensor has been done, mark is set true, but no traces is created
+    //  or an instant trace is created
     trace_name_cnt[name_str].cnt += 1;
     p_trace->ph = 'i';
     p_trace->ts = cur_t;
@@ -375,7 +385,6 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       nccl_traces_end->next = p_trace;
       nccl_traces_end = p_trace;
     }
-
   } else {
     p_trace->ph = 'X';
     if (nccl_traces_head == NULL) {
