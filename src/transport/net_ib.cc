@@ -602,7 +602,7 @@ ncclResult_t ncclIbDeregMr(void* comm, void* mhandle) {
 
 ncclResult_t ncclIbIsend(void* sendComm, void* data, int size, void* mhandle, void** request) {
   //huhanpeng
-  BPF_TRACE("ncclIbIsend starts");
+  // BPF_TRACE("ncclIbIsend starts");
 
   struct ncclIbSendComm* comm = (struct ncclIbSendComm*)sendComm;
   if (comm->ready == 0) NCCLCHECK(ncclSendCheck(comm));
@@ -663,7 +663,7 @@ ncclResult_t ncclIbIsend(void* sendComm, void* data, int size, void* mhandle, vo
   *request = req;
 
   // huhanpeng
-  BPF_TRACE("ncclIbIsend ends");
+  // BPF_TRACE("ncclIbIsend ends");
 
   return ncclSuccess;
 }
@@ -671,7 +671,7 @@ ncclResult_t ncclIbIsend(void* sendComm, void* data, int size, void* mhandle, vo
 ncclResult_t ncclIbPostFifo(struct ncclIbRecvComm* comm, uint32_t rkey, uint64_t addr, int size) {
 
   //huhanpeng
-  BPF_TRACE("ncclIbPostFifo starts");
+  // BPF_TRACE("ncclIbPostFifo starts");
 
   struct ibv_send_wr wr;
   memset(&wr, 0, sizeof(wr));
@@ -705,7 +705,7 @@ ncclResult_t ncclIbPostFifo(struct ncclIbRecvComm* comm, uint32_t rkey, uint64_t
 ncclResult_t ncclIbIrecv(void* recvComm, void* data, int size, void* mhandle, void** request) {
 
   //huhanpeng
-  BPF_TRACE("ncclIbIrecv starts");
+  // BPF_TRACE("ncclIbIrecv starts");
 
   struct ncclIbRecvComm* comm = (struct ncclIbRecvComm*)recvComm;
   if (comm->ready == 0) NCCLCHECK(ncclRecvCheck(comm));
@@ -744,7 +744,7 @@ ncclResult_t ncclIbIrecv(void* recvComm, void* data, int size, void* mhandle, vo
 ncclResult_t ncclIbFlush(void* recvComm, void* data, int size, void* mhandle) {
 
   //huhanpeng
-  BPF_TRACE("ncclIbFlush starts");
+  // BPF_TRACE("ncclIbFlush starts");
 
   struct ncclIbRecvComm* comm = (struct ncclIbRecvComm*)recvComm;
   if (comm->gpuFlush.enabled == 0 || size == 0) return ncclSuccess;
@@ -780,7 +780,7 @@ ncclResult_t ncclIbFlush(void* recvComm, void* data, int size, void* mhandle) {
 ncclResult_t ncclIbTest(void* request, int* done, int* size, long long *start_t) {
 
   //huhanpeng
-  BPF_TRACE("ncclIbTest starts");
+  // BPF_TRACE("ncclIbTest starts");
   
   struct ncclIbRequest *r = (struct ncclIbRequest*)request;
   *done = 0;

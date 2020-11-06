@@ -199,6 +199,7 @@ void ncclDebugLog(ncclDebugLogLevel level, unsigned long flags, const char *file
  *
 */
 void ncclTimelineInit(int local_rank) {
+  // printf("%d ncclTimelineInit\n", local_rank);
   pthread_mutex_lock(&ncclDebugLock);
   if (isTraceOn >= 0) {
     pthread_mutex_unlock(&ncclDebugLock);
@@ -222,7 +223,7 @@ void ncclTimelineInit(int local_rank) {
     ncclParseFileName(ByteProfilePath, &bpfFile);
   } else {
     isTraceOn = 0;
-    printf("%s BYTEPOS_TRACE_ON is not set\n", hostname);
+    printf("%s BYTEPS_TRACE_ON is not set\n", hostname);
   }
   pthread_mutex_unlock(&ncclDebugLock);
 }
@@ -286,6 +287,8 @@ bool ncclIsNeedArrive(int cnt) {
   // }
 }
 
+/** Print the number of arrival of each tensor
+*/
 void ncclPrintCnt() {
   printf("%s ncclPrintCnt \n", ByteProfilePath);
   for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
