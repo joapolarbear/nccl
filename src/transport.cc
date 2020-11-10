@@ -100,10 +100,9 @@ static ncclResult_t SaveProxy(int peer, struct ncclProxyArgs* args) {
 
   struct ncclPeer* peerComm = args->channel->peers+peer;
   struct ncclConnector* connector = type == proxyRecv ? &peerComm->recv : &peerComm->send;
-  if (connector->transportComm->proxy == NULL) {
-    BPF_TIMELINE(NULL, 0, 0, false, 0, NULL, true);
-    return ncclSuccess;
-  }
+  if (connector->transportComm->proxy == NULL) return ncclSuccess;
+
+  ncclCheckIntraMachine(connector->comm->cudaDev, true);
 
   struct ncclProxyArgs* op;
   NCCLCHECK(transportAllocateProxyArgs(connector->comm, &op));

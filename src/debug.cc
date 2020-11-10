@@ -15,7 +15,7 @@ uint64_t ncclDebugMask = NCCL_INIT; // Default debug sub-system mask is INIT
 FILE *ncclDebugFile = stdout;
 pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t output_thread;
-
+bool isIntraMachine = true;
 
 // for byteprofile
 int isTraceOn = -1;
@@ -305,21 +305,25 @@ void ncclGetCurTime(long long *ret) {
   *ret = cur_t;
 }
 
-int ncclAddTrace(const char *name, int rank, int local_rank, 
-    bool mark, long long start_t, ncclSliceInfo *sliceInfo, bool force_dump){
+int ncclCheckIntraMachine(int local_rank, bool flipOrCheck) {
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL || isTraceOn == 0) return 0;
 
   pthread_mutex_lock(&ncclDebugLock);
-
-  // if force_dump is set, directly output the trace file only with topological info, without communication traces
-  if (force_dump) {
-    // set isTraceOn immediately to stop profiling
+  if (flipOrCheck && isIntraMachine) isIntraMachine = false;
+  else if ((! flipOrCheck) && isIntraMachine){
     isTraceOn = 0;
     pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
-    pthread_mutex_unlock(&ncclDebugLock);
-    return 0;
-  }
+  } 
+  pthread_mutex_unlock(&ncclDebugLock);
+  return 0;
+}
+
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo){
+  if (isTraceOn == -1) ncclTimelineInit(local_rank);
+  if (bpfFile == NULL || isTraceOn == 0) return 0;
+
+  pthread_mutex_lock(&ncclDebugLock);
 
   // Decide whether to output traces
   std::string name_str;
@@ -527,7 +531,7 @@ void *ncclOutputTrace(void *) {
   return NULL;
 }
 
-bool isBPF_ON(int local_rank) {
+bool ncclCheckBPF(int local_rank) {
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   return isTraceOn == 1;
 }

@@ -36,11 +36,12 @@ typedef struct ncclSliceInfoT {
   int loopId;
 } ncclSliceInfo;
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo, bool force_dump);
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo);
 void *ncclOutputTrace(void *);
 void ncclGetCurTime(long long *ret);
-bool isBPF_ON(int rank);
+bool ncclCheckBPF(int local_rank);
 void ncclSaveTopo(const char *fmt, ...);
+int ncclCheckIntraMachine(int local_rank, bool flipOrCheck);
 
 
 #define ENABLE_TRACE
