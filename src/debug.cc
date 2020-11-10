@@ -14,6 +14,7 @@ thread_local int ncclDebugNoWarn = 0;
 uint64_t ncclDebugMask = NCCL_INIT; // Default debug sub-system mask is INIT
 FILE *ncclDebugFile = stdout;
 pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_t output_thread;
 
 
 // for byteprofile
@@ -304,11 +305,21 @@ void ncclGetCurTime(long long *ret) {
   *ret = cur_t;
 }
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo){
+int ncclAddTrace(const char *name, int rank, int local_rank, 
+    bool mark, long long start_t, ncclSliceInfo *sliceInfo, bool force_dump){
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
-  if (bpfFile == NULL) return 0;
+  if (bpfFile == NULL || isTraceOn == 0) return 0;
 
   pthread_mutex_lock(&ncclDebugLock);
+
+  // if force_dump is set, directly output the trace file only with topological info, without communication traces
+  if (force_dump) {
+    // set isTraceOn immediately to stop profiling
+    isTraceOn = 0;
+    pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
+    pthread_mutex_unlock(&ncclDebugLock);
+    return 0;
+  }
 
   // Decide whether to output traces
   std::string name_str;
@@ -340,7 +351,10 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       if (all_arrive) {
         // all recorded tensors are ready to output
         if(ncclDebugLevel == NCCL_LOG_TRACE) ncclPrintCnt();
-        ncclOutputTrace();
+        // set isTraceOn immediately to stop profiling
+        isTraceOn = 0;
+        pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
+        // ncclOutputTrace();
       }
     }
     pthread_mutex_unlock(&ncclDebugLock);
@@ -412,12 +426,13 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   return 0;
 }
 
-void ncclOutputTrace() {
+void *ncclOutputTrace(void *) {
+  fprintf(bpfFile, "{\n");
   ncclTrace *p_trace = nccl_traces_head;
   while (p_trace != NULL) {
     if (p_trace->prev == NULL){
       // the first trace
-      fprintf(bpfFile, "{\n    \"traceEvents\": [\n");
+      fprintf(bpfFile, "    \"traceEvents\": [\n");
     } else {
       fprintf(bpfFile, ",\n");
     }
@@ -484,10 +499,12 @@ void ncclOutputTrace() {
     fflush(bpfFile);
     p_trace = p_trace->next;
   }
-  fprintf(bpfFile, "\n"
-      "    ],\n");
+  // check whether any trace is outputed
+  if (p_trace != nccl_traces_head) {
+    fprintf(bpfFile, "\n    ],\n");
+  }
 
-  // print topology
+  // output topology
   for(auto it = topo.begin(); it != topo.end(); ++ it) {
     // for an algorithm
     fprintf(bpfFile, "    \"%s\": {", it->first.c_str());
@@ -507,6 +524,7 @@ void ncclOutputTrace() {
   fclose(bpfFile);
   bpfFile = NULL;
   printf("byteprofile output nccl trace to %s\n", ByteProfilePath);
+  return NULL;
 }
 
 bool isBPF_ON(int local_rank) {

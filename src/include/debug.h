@@ -36,8 +36,8 @@ typedef struct ncclSliceInfoT {
   int loopId;
 } ncclSliceInfo;
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo);
-void ncclOutputTrace();
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo, bool force_dump);
+void *ncclOutputTrace(void *);
 void ncclGetCurTime(long long *ret);
 bool isBPF_ON(int rank);
 void ncclSaveTopo(const char *fmt, ...);
