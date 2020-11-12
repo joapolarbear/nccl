@@ -436,29 +436,29 @@ void *ncclOutputTrace(void *) {
   while (p_trace != NULL) {
     if (p_trace->prev == NULL){
       // the first trace
-      fprintf(bpfFile, "    \"traceEvents\": [\n");
+      fprintf(bpfFile, "    \"traceEvents\": [");
     } else {
-      fprintf(bpfFile, ",\n");
+      fprintf(bpfFile, ",");
     }
 
     if (p_trace->ph == 'X') {
       fprintf(bpfFile,
-          "        {\n"
-          "            \"ph\": \"%c\",\n"
-          "            \"args\": {\n"
-          "                \"name\": \"%s\",\n"
-          "                \"chunkId\": %d,\n"
-          "                \"sliceId\": %d,\n"
-          "                \"channelId\": %d,\n"
-          "                \"loopId\": %d\n"
-          "            },\n"
-          "            \"pid\": \"%s\",\n"
-          "            \"name\": \"%s\",\n"
-          "            \"ts\": %lld,\n"
-          "            \"dur\": %lld,\n"
-          "            \"tid\": \"%s\",\n"
-          "            \"cat\": \"Comm\"\n"
-          "        }", 
+          "{"
+              "\"ph\": \"%c\","
+              "\"args\": {"
+                  "\"name\": \"%s\","
+                  "\"chunkId\": %d,"
+                  "\"sliceId\": %d,"
+                  "\"channelId\": %d,"
+                  "\"loopId\": %d"
+              "},"
+              "\"pid\": \"%s\","
+              "\"name\": \"%s\","
+              "\"ts\": %lld,"
+              "\"dur\": %lld,"
+              "\"tid\": \"%s\","
+              "\"cat\": \"Comm\""
+          "}",
           p_trace->ph,
           p_trace->name, 
           p_trace->chunkId, 
@@ -472,22 +472,22 @@ void *ncclOutputTrace(void *) {
           p_trace->tid);
     } else if (p_trace->ph == 'i') {
       fprintf(bpfFile,
-          "        {\n"
-          "            \"ph\": \"%c\",\n"
-          "            \"args\": {\n"
-          "                \"name\": \"%s\",\n"
-          "                \"chunkId\": %d,\n"
-          "                \"sliceId\": %d,\n"
-          "                \"channelId\": %d,\n"
-          "                \"loopId\": %d\n"
-          "            },\n"
-          "            \"pid\": \"%s\",\n"
-          "            \"name\": \"%s\",\n"
-          "            \"ts\": %lld,\n"
-          "            \"tid\": \"%s\",\n"
-          "            \"cat\": \"Comm\",\n"
-          "            \"s\": \"g\"\n"
-          "        }", 
+          "{"
+              "\"ph\": \"%c\","
+              "\"args\": {"
+                  "\"name\": \"%s\","
+                  "\"chunkId\": %d,"
+                  "\"sliceId\": %d,"
+                  "\"channelId\": %d,"
+                  "\"loopId\": %d"
+              "},"
+              "\"pid\": \"%s\","
+              "\"name\": \"%s\","
+              "\"ts\": %lld,"
+              "\"tid\": \"%s\","
+              "\"cat\": \"Comm\","
+              "\"s\": \"g\""
+          "}",
           p_trace->ph,
           p_trace->name, 
           p_trace->chunkId, 
@@ -505,7 +505,7 @@ void *ncclOutputTrace(void *) {
   }
   // check whether any trace is outputed
   if (p_trace != nccl_traces_head) {
-    fprintf(bpfFile, "\n    ],\n");
+    fprintf(bpfFile, "],\n");
   }
 
   // output topology
