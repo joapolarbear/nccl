@@ -324,6 +324,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   if (bpfFile == NULL || isTraceOn == 0) return 0;
 
   pthread_mutex_lock(&ncclDebugLock);
+  bool add_trace = false;
 
   // Decide whether to output traces
   std::string name_str;
@@ -333,46 +334,68 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   } else {
     name_str = std::string(name);
   }
-  name_str += std::to_string(sliceInfo->channelId);
-  std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str);
-  if (finder == trace_name_cnt.end()) {
-    trace_name_cnt[name_str] = {0, false};
-    // printf("%s ncclAddTrace adds new name %s\n", ByteProfilePath, name);
-  } 
-  if (trace_name_cnt[name_str].cnt >= ncclByteProfileEnd){
-    if (!trace_name_cnt[name_str].end){
-      // the first time larger than ncclByteProfileEnd
-      trace_name_cnt[name_str].end = true;
 
-      bool all_arrive = true;
-      for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
-        if (!it->second.end && ncclIsNeedArrive((int)it->second.cnt)) {
-          all_arrive = false;
-          // printf("%s wait for %s\n", ByteProfilePath, it->first.c_str());
-          break;
+  std::vector<std::string> tensor_names_;
+  auto finder = name_str.find(".");
+  auto prefix = name_str.substr(0, finder+1);
+  auto tmp_str = name_str.substr(finder+1);
+  finder = tmp_str.find(".");
+  auto raw_names = tmp_str.substr(0, finder);
+  auto suffix = tmp_str.substr(finder);
+
+  while ((finder=raw_names.find("+")) != std::string::npos) {
+      // the name is fused, stat each tensor respectively to avoid different combinations across different steps
+      tensor_names_.push_back(prefix + raw_names.substr(0, finder) + suffix + std::to_string(sliceInfo->channelId));
+      raw_names = raw_names.substr(finder+1);
+  }
+  tensor_names_.push_back(prefix + raw_names + suffix + std::to_string(sliceInfo->channelId));
+
+  for (auto name_str_: tensor_names_) { 
+    std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str_);
+    if (finder == trace_name_cnt.end()) {
+      trace_name_cnt[name_str_] = {0, false};
+      // printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
+    }
+    // Check the number of times the tensor has arrived
+    if (trace_name_cnt[name_str_].cnt >= ncclByteProfileEnd){
+      if (!trace_name_cnt[name_str_].end){
+        // the first time larger than ncclByteProfileEnd
+        trace_name_cnt[name_str_].end = true;
+        if (name_str_ == tensor_names_.back()){
+          bool all_arrive = true;
+          for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
+            if (!it->second.end && ncclIsNeedArrive((int)it->second.cnt)) {
+              all_arrive = false;
+              // printf("%s wait for %s\n", ByteProfilePath, it->first.c_str());
+              break;
+            }
+          }
+          if (all_arrive) {
+            // all recorded tensors are ready to output
+            if(ncclDebugLevel == NCCL_LOG_TRACE) ncclPrintCnt();
+            // set isTraceOn immediately to stop profiling
+            isTraceOn = 0;
+            pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
+            // ncclOutputTrace();
+          }
         }
       }
-      if (all_arrive) {
-        // all recorded tensors are ready to output
-        if(ncclDebugLevel == NCCL_LOG_TRACE) ncclPrintCnt();
-        // set isTraceOn immediately to stop profiling
-        isTraceOn = 0;
-        pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
-        // ncclOutputTrace();
+    } else {
+      if (trace_name_cnt[name_str_].cnt >= ncclByteProfileStart - 1) {
+        // need to append the traces to the traces list
+        add_trace=true;
       }
+      if (mark) trace_name_cnt[name_str_].cnt += 1;
     }
-    pthread_mutex_unlock(&ncclDebugLock);
-    return 0;
-  } else if (trace_name_cnt[name_str].cnt < ncclByteProfileStart - 1) {
-    // No need to add traces, but change the cnt if necessary
-    if (mark) {
-      trace_name_cnt[name_str].cnt += 1;
-    }
+  }
+
+  if (!add_trace) {
+    // no trace needs to be added, unlock and return
     pthread_mutex_unlock(&ncclDebugLock);
     return 0;
   }
 
-  // Add traces during the iteration range
+  // Add traces during the iteration range, from start step to end step
   long long cur_t;
   ncclGetCurTime(&cur_t);
 
@@ -387,26 +410,10 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   p_trace->sliceId = sliceInfo->sliceId;
   p_trace->loopId = sliceInfo->loopId;
 
-  if (mark) {
+  if (!mark) {
     // for each slice, mark is false, we do not increase the tensor cnt, but add traces
     // only when the tensor has been done, mark is set true, but no traces is created
     //  or an instant trace is created
-    trace_name_cnt[name_str].cnt += 1;
-    p_trace->ph = 'i';
-    p_trace->ts = cur_t;
-    p_trace->dur = 0;
-    if (nccl_traces_head == NULL) {
-      p_trace->prev = NULL;
-      p_trace->next = NULL;
-      nccl_traces_head = p_trace;
-      nccl_traces_end = p_trace;
-    } else {
-      p_trace->prev = nccl_traces_end;
-      p_trace->next = NULL;
-      nccl_traces_end->next = p_trace;
-      nccl_traces_end = p_trace;
-    }
-  } else {
     p_trace->ph = 'X';
     if (nccl_traces_head == NULL) {
       p_trace->ts = start_t;
