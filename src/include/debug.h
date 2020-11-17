@@ -38,10 +38,11 @@ typedef struct ncclSliceInfoT {
 
 int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo);
 void *ncclOutputTrace(void *);
+void *ncclOutputNCCLTopo(void *);
 void ncclGetCurTime(long long *ret);
 bool ncclCheckBPF(int local_rank);
 void ncclSaveTopo(const char *fmt, ...);
-int ncclCheckIntraMachine(int local_rank, int interHostNum);
+int ncclCheckIntraMachine(int local_rank);
 
 
 #define ENABLE_TRACE

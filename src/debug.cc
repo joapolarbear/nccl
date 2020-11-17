@@ -14,13 +14,15 @@ thread_local int ncclDebugNoWarn = 0;
 uint64_t ncclDebugMask = NCCL_INIT; // Default debug sub-system mask is INIT
 FILE *ncclDebugFile = stdout;
 pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
-pthread_t output_thread;
+pthread_t output_thread, output_thread_topo;
 
 // for byteprofile
-int isTraceOn = -1;
+int isTraceOn = -1, isTraceNCCLTopoOn = -1;
 int ncclByteProfileStart = -1, ncclByteProfileEnd = -1;
 char ByteProfilePath[PATH_MAX+1] = "";
+char ByteProfilePathNCCL[PATH_MAX+1] = "";
 FILE *bpfFile = NULL;
+FILE *bpfFileNCLLTopo = NULL;
 ncclTrace* nccl_traces_head = NULL;
 ncclTrace* nccl_traces_end = NULL;
 std::unordered_map<std::string, struct pair_uint64_t_bool> trace_name_cnt;
@@ -57,7 +59,7 @@ int ncclParseFileName(const char *FileEnv, FILE **fd) {
   if (debugFn[0] != '\0') {
     FILE *file = fopen(debugFn, "w");
     if (file != NULL) {
-      printf("%s:%d DEBUG file is '%s'\n", hostname, getpid(), debugFn);
+      // printf("%s:%d DEBUG file is '%s'\n", hostname, getpid(), debugFn);
       *fd = file;
       return 0;
     }
@@ -211,7 +213,7 @@ void ncclTimelineInit(int local_rank) {
   getHostName(hostname, 1024, '.');
   const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
   if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
-    isTraceOn = 1;
+    isTraceOn = isTraceNCCLTopoOn = 1;
     ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
     ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
     printf("%s Timeline Range:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
@@ -221,8 +223,13 @@ void ncclTimelineInit(int local_rank) {
                    "%s/%d/comm_detail.json", ncclByteProfileDir, local_rank);
     printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
     ncclParseFileName(ByteProfilePath, &bpfFile);
+
+    snprintf(ByteProfilePathNCCL, sizeof(ByteProfilePathNCCL),
+                   "%s/%d/nccl_rank_graph.json", ncclByteProfileDir, local_rank);
+    ncclParseFileName(ByteProfilePathNCCL, &bpfFileNCLLTopo);
+    
   } else {
-    isTraceOn = 0;
+    isTraceOn = isTraceNCCLTopoOn = 0;
     printf("%s BYTEPS_TRACE_ON is not set\n", hostname);
   }
   pthread_mutex_unlock(&ncclDebugLock);
@@ -304,15 +311,13 @@ void ncclGetCurTime(long long *ret) {
   *ret = cur_t;
 }
 
-int ncclCheckIntraMachine(int local_rank, int interHostNum) {
-  if (isTraceOn == -1) ncclTimelineInit(local_rank);
-  if (bpfFile == NULL || isTraceOn == 0) return 0;
+int ncclCheckIntraMachine(int local_rank) {
+  if (isTraceNCCLTopoOn == -1) ncclTimelineInit(local_rank);
+  if (bpfFileNCLLTopo == NULL || isTraceNCCLTopoOn == 0) return 0;
 
   pthread_mutex_lock(&ncclDebugLock);
-  if (interHostNum == 0) {
-    isTraceOn = 0;
-    pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
-  } 
+  isTraceNCCLTopoOn = 0;
+  pthread_create(&output_thread_topo, NULL, ncclOutputNCCLTopo, NULL);
   pthread_mutex_unlock(&ncclDebugLock);
   return 0;
 }
@@ -435,6 +440,31 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   return 0;
 }
 
+void *ncclOutputNCCLTopo(void *) {
+  fprintf(bpfFileNCLLTopo, "{\n");
+  // output topology
+  for(auto it = topo.begin(); it != topo.end(); ++ it) {
+    // for an algorithm
+    fprintf(bpfFileNCLLTopo, "    \"%s\": {", it->first.c_str());
+    for (auto it2 = it->second.begin(); it2 != it->second.end(); ++it2) {
+      if (it2 != it->second.begin()) {
+        fprintf(bpfFileNCLLTopo, ",");
+      }
+      fprintf(bpfFileNCLLTopo, "\"%d\": \"%s\"", it2->first, it2->second.c_str());
+    }
+    if (it == topo.end())
+    fprintf(bpfFileNCLLTopo, "},\n");
+  }
+  fprintf(bpfFileNCLLTopo,
+      "    \"displayTimeUnit\": \"ms\"\n"
+      "}\n");
+  fflush(bpfFileNCLLTopo);
+  fclose(bpfFileNCLLTopo);
+  bpfFileNCLLTopo = NULL;
+  printf("Byteprofiler output nccl topo at %s\n", ByteProfilePathNCCL);
+  return NULL;
+}
+
 void *ncclOutputTrace(void *) {
   fprintf(bpfFile, "{\n");
   ncclTrace *p_trace = nccl_traces_head;
@@ -504,7 +534,6 @@ void *ncclOutputTrace(void *) {
           p_trace->ts,  
           p_trace->tid);
     }
-    
     fflush(bpfFile);
     p_trace = p_trace->next;
   }
@@ -513,26 +542,13 @@ void *ncclOutputTrace(void *) {
     fprintf(bpfFile, "],\n");
   }
 
-  // output topology
-  for(auto it = topo.begin(); it != topo.end(); ++ it) {
-    // for an algorithm
-    fprintf(bpfFile, "    \"%s\": {", it->first.c_str());
-    for (auto it2 = it->second.begin(); it2 != it->second.end(); ++it2) {
-      if (it2 != it->second.begin()) {
-        fprintf(bpfFile, ",");
-      }
-      fprintf(bpfFile, "\"%d\": \"%s\"", it2->first, it2->second.c_str());
-    }
-    fprintf(bpfFile, "},\n");
-  }
-  
   fprintf(bpfFile,
       "    \"displayTimeUnit\": \"ms\"\n"
       "}\n");
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
-  printf("byteprofile output nccl trace to %s\n", ByteProfilePath);
+  printf("Byteprofiler output nccl traces at %s\n", ByteProfilePath);
   return NULL;
 }
 
