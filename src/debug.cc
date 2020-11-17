@@ -15,7 +15,6 @@ uint64_t ncclDebugMask = NCCL_INIT; // Default debug sub-system mask is INIT
 FILE *ncclDebugFile = stdout;
 pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t output_thread;
-bool isIntraMachine = true;
 
 // for byteprofile
 int isTraceOn = -1;
@@ -305,13 +304,12 @@ void ncclGetCurTime(long long *ret) {
   *ret = cur_t;
 }
 
-int ncclCheckIntraMachine(int local_rank, bool flipOrCheck) {
+int ncclCheckIntraMachine(int local_rank, int interHostNum) {
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL || isTraceOn == 0) return 0;
 
   pthread_mutex_lock(&ncclDebugLock);
-  if (flipOrCheck && isIntraMachine) isIntraMachine = false;
-  else if ((! flipOrCheck) && isIntraMachine){
+  if (interHostNum == 0) {
     isTraceOn = 0;
     pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
   } 
@@ -330,7 +328,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   std::string name_str;
   if (name == NULL) {
     name_str = std::string("default_name");
-    printf("%s: Input name is NULL\n", ByteProfilePath);
+    // printf("%s: Input name is NULL\n", ByteProfilePath);
   } else {
     name_str = std::string(name);
   }

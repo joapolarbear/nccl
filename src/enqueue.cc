@@ -428,7 +428,6 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
     channel->collFifoTail = opIndex;
     channel->collCount++;
   }
-  ncclCheckIntraMachine(info->comm->cudaDev, false);
   info->comm->opCount++;
   return ncclSuccess;
 }

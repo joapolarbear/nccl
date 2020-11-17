@@ -41,7 +41,7 @@ void *ncclOutputTrace(void *);
 void ncclGetCurTime(long long *ret);
 bool ncclCheckBPF(int local_rank);
 void ncclSaveTopo(const char *fmt, ...);
-int ncclCheckIntraMachine(int local_rank, bool flipOrCheck);
+int ncclCheckIntraMachine(int local_rank, int interHostNum);
 
 
 #define ENABLE_TRACE

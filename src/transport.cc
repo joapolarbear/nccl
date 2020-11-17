@@ -102,8 +102,6 @@ static ncclResult_t SaveProxy(int peer, struct ncclProxyArgs* args) {
   struct ncclConnector* connector = type == proxyRecv ? &peerComm->recv : &peerComm->send;
   if (connector->transportComm->proxy == NULL) return ncclSuccess;
 
-  ncclCheckIntraMachine(connector->comm->cudaDev, true);
-
   struct ncclProxyArgs* op;
   NCCLCHECK(transportAllocateProxyArgs(connector->comm, &op));
   memcpy(op, args, sizeof(struct ncclProxyArgs));

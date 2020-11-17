@@ -612,12 +612,21 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, ncclUniqueId* comm
 
   char line[1024];
   line[0]='\0';
+  int interHostNum = 0;
   for (int c=0; c<comm->nChannels; c++) {
     struct ncclTree* treeUp = &comm->channels[c].treeUp;
     struct ncclTree* treeDn = &comm->channels[c].treeDn;
     snprintf(line+strlen(line), 1023-strlen(line), " [%d] %d/%d/%d->%d->%d|%d->%d->%d/%d/%d",
         c, treeUp->down[0], treeUp->down[1], treeUp->down[2], rank, treeUp->up,
         treeDn->up, rank, treeDn->down[0], treeDn->down[1], treeDn->down[2]);
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeUp->down[0]].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeUp->down[1]].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeUp->down[2]].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeUp->up].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeDn->up].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeDn->down[0]].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeDn->down[1]].hostHash) interHostNum++;
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[treeDn->down[2]].hostHash) interHostNum++;
   }
   line[1023] = '\0';
   BPF_INFO_DUMP(NCCL_INIT, "Trees%s", line);
@@ -636,17 +645,20 @@ static ncclResult_t initTransportsRank(struct ncclComm* comm, ncclUniqueId* comm
           (comm->peerInfo+channel->ring.prev)->busId,
           (comm->peerInfo+comm->rank)->rank, 
           (comm->peerInfo+comm->rank)->busId);
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[channel->ring.prev].hostHash) interHostNum++;
     BPF_INFO_DUMP(NCCL_INIT|NCCL_NET,"REALRING %02d : %d[%lx] -> %d[%lx] [send]", 
           channel->id, 
           (comm->peerInfo+comm->rank)->rank, 
           (comm->peerInfo+comm->rank)->busId, 
           (comm->peerInfo+channel->ring.next)->rank,
           (comm->peerInfo+channel->ring.next)->busId);
+    if (comm->peerInfo[rank].hostHash != comm->peerInfo[channel->ring.next].hostHash) interHostNum++;
 
     NCCLCHECK(p2pSetup(comm, &ringGraph, channel, 1, &channel->ring.prev, 1, &channel->ring.next));
     NCCLCHECK(p2pSetup(comm, &treeGraph, channel, NCCL_MAX_TREE_ARITY, channel->treeUp.down, 1, &channel->treeUp.up));
     NCCLCHECK(p2pSetup(comm, &treeGraph, channel, 1, &channel->treeDn.up, NCCL_MAX_TREE_ARITY, channel->treeDn.down));
   }
+  ncclCheckIntraMachine(comm->cudaDev, interHostNum);
   TRACE(NCCL_INIT, "rank %d nranks %d - CONNECTED %d RINGS AND TREES", rank, nranks, comm->nChannels);
   free(connect);
   free(rings);
