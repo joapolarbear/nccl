@@ -14,7 +14,7 @@ thread_local int ncclDebugNoWarn = 0;
 uint64_t ncclDebugMask = NCCL_INIT; // Default debug sub-system mask is INIT
 FILE *ncclDebugFile = stdout;
 pthread_mutex_t ncclDebugLock = PTHREAD_MUTEX_INITIALIZER;
-pthread_t output_thread, output_thread_topo;
+pthread_t output_thread;
 
 // for byteprofile
 int isTraceOn = -1, isTraceNCCLTopoOn = -1;
@@ -277,21 +277,19 @@ void ncclSaveTopo(const char *fmt, ...) {
 }
 
 /** There may be some trival tensors which will only be transfered for
- * one or twcie (some small number). To avoid waiting for these tensors
- * to reach ncclByteProfileEnd, set a threashold, if the difference is 
- * too large, just ignore these tensors.
+ * one or twcie (some small number, e.g. local_num_mask). To avoid waiting for these tensors
+ * to reach ncclByteProfileEnd, only check those operators with legal name format 
+ * legal name should be prefix.tensor_idx.suffix
 */
-bool ncclIsNeedArrive(int cnt) {
-  float THREASHOLD = 5;
-  if (cnt < THREASHOLD) {
+bool ncclIsNeedArrive(std::string name) {
+  auto finder = name.find(".");
+  auto tmp_str = name.substr(finder+1);
+  finder = tmp_str.find(".");
+  tmp_str = tmp_str.substr(0, finder);
+  if (tmp_str.find_first_not_of( "0123456789" ) != std::string::npos) {
+    // not a digit, illegal, unnecessary for NCCL traces output
     return false;
-  } 
-  return true;
-  // if ((float)(ncclByteProfileEnd - cnt) > (float)(ncclByteProfileEnd * 0.8)) {
-  //   return false;
-  // } else {
-  //   return true;
-  // }
+  } else return true;
 }
 
 /** Print the number of arrival of each tensor
@@ -317,7 +315,7 @@ int ncclCheckIntraMachine(int local_rank) {
 
   pthread_mutex_lock(&ncclDebugLock);
   isTraceNCCLTopoOn = 0;
-  pthread_create(&output_thread_topo, NULL, ncclOutputNCCLTopo, NULL);
+  ncclOutputNCCLTopo(NULL);
   pthread_mutex_unlock(&ncclDebugLock);
   return 0;
 }
@@ -357,7 +355,9 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
     std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str_);
     if (finder == trace_name_cnt.end()) {
       trace_name_cnt[name_str_] = {0, false};
-      // printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
+#ifdef ENABLE_TRACE
+      if(ncclDebugLevel == NCCL_LOG_TRACE) printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
+#endif
     }
     // Check the number of times the tensor has arrived
     if (trace_name_cnt[name_str_].cnt >= ncclByteProfileEnd){
@@ -365,11 +365,14 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
         // the first time larger than ncclByteProfileEnd
         trace_name_cnt[name_str_].end = true;
         if (name_str_ == tensor_names_.back()){
+          // check whether to output traces only for the last tensor in the fused tensors
           bool all_arrive = true;
           for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
-            if (!it->second.end && ncclIsNeedArrive((int)it->second.cnt)) {
+            if (!it->second.end && ncclIsNeedArrive(name_str_)) {
               all_arrive = false;
-              // printf("%s wait for %s\n", ByteProfilePath, it->first.c_str());
+#ifdef ENABLE_TRACE
+              if(ncclDebugLevel == NCCL_LOG_TRACE) printf("%s wait for %s\n", ByteProfilePath, it->first.c_str());
+#endif
               break;
             }
           }
@@ -386,13 +389,13 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
     } else {
       if (trace_name_cnt[name_str_].cnt >= ncclByteProfileStart - 1) {
         // need to append the traces to the traces list
-        add_trace=true;
+        add_trace = true;
       }
       if (mark) trace_name_cnt[name_str_].cnt += 1;
     }
   }
 
-  if (!add_trace) {
+  if (! add_trace) {
     // no trace needs to be added, unlock and return
     pthread_mutex_unlock(&ncclDebugLock);
     return 0;
@@ -452,7 +455,6 @@ void *ncclOutputNCCLTopo(void *) {
       }
       fprintf(bpfFileNCLLTopo, "\"%d\": \"%s\"", it2->first, it2->second.c_str());
     }
-    if (it == topo.end())
     fprintf(bpfFileNCLLTopo, "},\n");
   }
   fprintf(bpfFileNCLLTopo,
