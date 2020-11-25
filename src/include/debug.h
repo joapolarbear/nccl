@@ -18,6 +18,7 @@
 #include "nccl_net.h"
 #include <unordered_map>
 #include <string>
+#include <vector>
 
 #define gettid() (pid_t) syscall(SYS_gettid)
 
