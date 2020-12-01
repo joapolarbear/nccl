@@ -19,7 +19,7 @@ ncclResult_t ncclBroadcast(const void* sendbuff, void* recvbuff, size_t count, n
   va_start(vargs, stream);
   const char* input_name = va_arg(vargs, const char *);
   va_end(vargs);
-  if (input_name != NULL && strstr(input_name, "horovod") != NULL) unique_name = input_name;
+  if (input_name != NULL) unique_name = input_name;
   else unique_name = NULL;
 
   struct ncclInfo info = { ncclCollBroadcast, "Broadcast",
@@ -39,7 +39,7 @@ ncclResult_t ncclBcast(void* buff, size_t count, ncclDataType_t datatype, int ro
   va_start(vargs, stream);
   const char* input_name = va_arg(vargs, const char *);
   va_end(vargs);
-  if (input_name != NULL && strstr(input_name, "horovod") != NULL) unique_name = input_name;
+  if (input_name != NULL) unique_name = input_name;
   else unique_name = NULL;
 
   return ncclBroadcast(buff, buff, count, datatype, root, comm, stream, unique_name);

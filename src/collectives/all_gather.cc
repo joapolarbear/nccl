@@ -19,7 +19,7 @@ ncclResult_t ncclAllGather(const void* sendbuff, void* recvbuff, size_t sendcoun
   va_start(vargs, stream);
   const char* input_name = va_arg(vargs, const char *);
   va_end(vargs);
-  if (input_name != NULL && strstr(input_name, "horovod") != NULL) unique_name = input_name;
+  if (input_name != NULL) unique_name = input_name;
   else unique_name = NULL;
 
   struct ncclInfo info = { ncclCollAllGather, "AllGather",

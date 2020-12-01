@@ -282,7 +282,9 @@ void ncclSaveTopo(const char *fmt, ...) {
  * legal name should be prefix.tensor_idx.suffix
 */
 bool ncclIsNeedArrive(std::string name) {
+  if (name.length() == 0) return false;
   auto finder = name.find(".");
+  if (finder == std::string::npos) return false;
   auto tmp_str = name.substr(finder+1);
   finder = tmp_str.find(".");
   tmp_str = tmp_str.substr(0, finder);
@@ -330,17 +332,26 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   // Decide whether to output traces
   std::string name_str;
   if (name == NULL) {
-    name_str = std::string("default_name");
-    // printf("%s: Input name is NULL\n", ByteProfilePath);
+    printf("%s: is NULL \n", ByteProfilePath);
+    return 0;
+    // name_str = std::string("default_name");
   } else {
     name_str = std::string(name);
   }
 
   std::vector<std::string> tensor_names_;
   auto finder = name_str.find(".");
+  if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
+    printf("%s: %s has no prefix \n", ByteProfilePath, name_str.c_str());
+    return 0;
+  }
   auto prefix = name_str.substr(0, finder+1);
   auto tmp_str = name_str.substr(finder+1);
   finder = tmp_str.find(".");
+  if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
+    printf("%s: %s has no suffix \n", ByteProfilePath, name_str.c_str());
+    return 0;
+  }
   auto raw_names = tmp_str.substr(0, finder);
   auto suffix = tmp_str.substr(finder);
 
