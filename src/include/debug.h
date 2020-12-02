@@ -44,11 +44,11 @@ void ncclGetCurTime(long long *ret);
 bool ncclCheckBPF(int local_rank);
 void ncclSaveTopo(const char *fmt, ...);
 int ncclCheckIntraMachine(int local_rank);
-
+int wrap_strcpy(char *target, const char *node_name);
 
 #define ENABLE_TRACE
 
-#define MAX_TRACE_NAME_LEN 256
+#define MAX_TRACE_NAME_LEN 1024
 typedef struct ncclTraceT {
   char name[MAX_TRACE_NAME_LEN];
   char pid[MAX_TRACE_NAME_LEN];

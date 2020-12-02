@@ -211,7 +211,7 @@ void ncclTimelineInit(int local_rank) {
   // for byteprofile
   char hostname[1024];
   getHostName(hostname, 1024, '.');
-  const char* ncclByteProfileTrace = getenv("BYTEPS_TRACE_ON");
+  const char* ncclByteProfileTrace = getenv("NCCL_ENABLE_TIMELINE");
   if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
     isTraceOn = isTraceNCCLTopoOn = 1;
     ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
@@ -326,35 +326,32 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL || isTraceOn == 0) return 0;
 
-  pthread_mutex_lock(&ncclDebugLock);
-  bool add_trace = false;
-
-  // Decide whether to output traces
+  // ignore names which is NULL or empty
   std::string name_str;
-  if (name == NULL) {
-    printf("%s: is NULL \n", ByteProfilePath);
+  if (name == NULL or strlen(name) == 0) {
+    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s: is NULL \n", ByteProfilePath);
     return 0;
     // name_str = std::string("default_name");
   } else {
     name_str = std::string(name);
   }
 
+  // parse all tensors from the fused tensor name
   std::vector<std::string> tensor_names_;
   auto finder = name_str.find(".");
   if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
-    printf("%s: %s has no prefix \n", ByteProfilePath, name_str.c_str());
+    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s: %s has no prefix \n", ByteProfilePath, name_str.c_str());
     return 0;
   }
   auto prefix = name_str.substr(0, finder+1);
   auto tmp_str = name_str.substr(finder+1);
   finder = tmp_str.find(".");
   if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
-    printf("%s: %s has no suffix \n", ByteProfilePath, name_str.c_str());
+    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s: %s has no suffix \n", ByteProfilePath, name_str.c_str());
     return 0;
   }
   auto raw_names = tmp_str.substr(0, finder);
   auto suffix = tmp_str.substr(finder);
-
   while ((finder=raw_names.find("+")) != std::string::npos) {
       // the name is fused, stat each tensor respectively to avoid different combinations across different steps
       tensor_names_.push_back(prefix + raw_names.substr(0, finder) + suffix + std::to_string(sliceInfo->channelId));
@@ -362,12 +359,15 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   }
   tensor_names_.push_back(prefix + raw_names + suffix + std::to_string(sliceInfo->channelId));
 
-  for (auto name_str_: tensor_names_) { 
+  // statistic each tensor in the fused tensors
+  pthread_mutex_lock(&ncclDebugLock);
+  bool add_trace = false, check_dump = false;
+  for (auto name_str_: tensor_names_) {
     std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str_);
     if (finder == trace_name_cnt.end()) {
       trace_name_cnt[name_str_] = {0, false};
 #ifdef ENABLE_TRACE
-      if(ncclDebugLevel == NCCL_LOG_TRACE) printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
+      if (ncclDebugLevel == NCCL_LOG_TRACE) printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
 #endif
     }
     // Check the number of times the tensor has arrived
@@ -375,27 +375,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       if (!trace_name_cnt[name_str_].end){
         // the first time larger than ncclByteProfileEnd
         trace_name_cnt[name_str_].end = true;
-        if (name_str_ == tensor_names_.back()){
-          // check whether to output traces only for the last tensor in the fused tensors
-          bool all_arrive = true;
-          for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
-            if (!it->second.end && ncclIsNeedArrive(name_str_)) {
-              all_arrive = false;
-#ifdef ENABLE_TRACE
-              if(ncclDebugLevel == NCCL_LOG_TRACE) printf("%s wait for %s\n", ByteProfilePath, it->first.c_str());
-#endif
-              break;
-            }
-          }
-          if (all_arrive) {
-            // all recorded tensors are ready to output
-            if(ncclDebugLevel == NCCL_LOG_TRACE) ncclPrintCnt();
-            // set isTraceOn immediately to stop profiling
-            isTraceOn = 0;
-            pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
-            // ncclOutputTrace();
-          }
-        }
+        check_dump = true;
       }
     } else {
       if (trace_name_cnt[name_str_].cnt >= ncclByteProfileStart - 1) {
@@ -403,6 +383,30 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
         add_trace = true;
       }
       if (mark) trace_name_cnt[name_str_].cnt += 1;
+    }
+  }
+
+  // check whether to dump NCCL traces
+  if (check_dump) {
+    // check whether to output traces only for the last tensor in the fused tensors
+    bool all_arrive = true;
+    for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++it) {
+      if (!it->second.end && ncclIsNeedArrive(it->first)) {
+        all_arrive = false;
+#ifdef ENABLE_TRACE
+        if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s wait for %s (cnt: %lu)\n", ByteProfilePath, it->first.c_str(), it->second.cnt);
+#endif
+        break;
+      }
+    }
+    if (all_arrive) {
+      // all recorded tensors are ready to output
+      if (ncclDebugLevel == NCCL_LOG_TRACE)
+        ncclPrintCnt();
+      // set isTraceOn immediately to stop profiling
+      isTraceOn = 0;
+      pthread_create(&output_thread, NULL, ncclOutputTrace, NULL);
+      // ncclOutputTrace();
     }
   }
 
@@ -570,3 +574,47 @@ bool ncclCheckBPF(int local_rank) {
   return isTraceOn == 1;
 }
 
+int wrap_strcpy(char *target, const char *node_name) {
+  if (isTraceOn == -1) ncclTimelineInit(local_rank);
+  if (bpfFile == NULL || isTraceOn == 0) return 0;
+  
+  std::string name_str = std::string(node_name);
+  std::vector<std::string> tensor_names_;
+  auto finder = name_str.find(".");
+  if (finder == std::string::npos || finder == 0 ||
+      finder == name_str.length()) {
+    printf("%s has no prefix \n", name_str.c_str());
+    strcpy(target, node_name);
+    return 0;
+  }
+  auto prefix = name_str.substr(0, finder + 1);
+  auto raw_names = name_str.substr(finder + 1);
+  if ((finder = prefix.find("/")) != std::string::npos) prefix = prefix.substr(finder + 1);
+  name_str = prefix;
+  bool first = true;
+  while ((finder = raw_names.find("+")) != std::string::npos){
+    // the name is fused, stat each tensor respectively to avoid different
+    // combinations across different steps
+    auto tmp = raw_names.substr(0, finder);
+    raw_names = raw_names.substr(finder + 1);
+    if ((finder = tmp.find("_")) != std::string::npos)
+      tmp = tmp.substr(0, finder);
+    if (first) {
+      name_str += tmp;
+      first = false;
+    }
+    else name_str += "+" + tmp;
+  }
+  if ((finder = raw_names.find("_")) != std::string::npos) raw_names = raw_names.substr(0, finder);
+  if (first) {
+    name_str += raw_names;
+    first = false;
+  }
+  else name_str += "+" + raw_names;
+  if (name_str.length() > MAX_TRACE_NAME_LEN) {
+    WARN("Operator name %s is too long: %d > %d", name_str.c_str(), name_str.length(), MAX_TRACE_NAME_LEN);
+    return 1;
+  }
+  strcpy(target, name_str.c_str());
+  return 0;
+}
