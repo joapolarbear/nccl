@@ -409,7 +409,12 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
 
     // Proxy
     proxyArgs.channel = channel;
-    if (info->unique_name != NULL) strcpy(proxyArgs.unique_name, info->unique_name);
+    if (info->unique_name != NULL) {
+      if (strlen(info->unique_name) > MAX_TRACE_NAME_LEN) {
+        WARN("Operator name %s is too long: %d > %d", info->unique_name, strlen(info->unique_name), MAX_TRACE_NAME_LEN);
+        strcpy(proxyArgs.unique_name, &info->unique_name[strlen(info->unique_name) - MAX_TRACE_NAME_LEN]);
+      } else strcpy(proxyArgs.unique_name, info->unique_name);
+    }
     NCCLCHECK(transportSaveProxies(&proxyArgs, info->pattern, info->root, info->comm->nRanks));
 
     info->comm->myParams->gridDim.x++;

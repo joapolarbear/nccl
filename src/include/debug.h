@@ -48,7 +48,7 @@ int ncclCheckIntraMachine(int local_rank);
 
 #define ENABLE_TRACE
 
-#define MAX_TRACE_NAME_LEN 128
+#define MAX_TRACE_NAME_LEN 256
 typedef struct ncclTraceT {
   char name[MAX_TRACE_NAME_LEN];
   char pid[MAX_TRACE_NAME_LEN];
