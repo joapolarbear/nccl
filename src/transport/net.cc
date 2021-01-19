@@ -343,7 +343,7 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
         if (done) {
           ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
           netParseSliceId(args, sliceInfo);
-          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t);
+          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t, sliceInfo);
           args->head += args->sliceSteps;
           resources->hostSendMem->head = args->head;
           args->idle = 0;
@@ -356,7 +356,7 @@ ncclResult_t netSendProxy(struct ncclProxyArgs* args) {
       args->state = ncclProxyOpNone;
       ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
       netParseSliceId(args, sliceInfo);
-      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0);
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0, sliceInfo);
     }
   }
   return ncclSuccess;
@@ -400,7 +400,7 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
         if (done) {
           ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
           netParseSliceId(args, sliceInfo);
-          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t);
+          BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, false, start_t, sliceInfo);
           args->head += args->sliceSteps;
           if (args->protocol == NCCL_PROTO_SIMPLE) {
             if (resources->useGdr) ncclNetFlush(resources->netRecvComm, localBuff+buffSlot*stepSize, size, mhandle);
@@ -416,7 +416,7 @@ ncclResult_t netRecvProxy(struct ncclProxyArgs* args) {
       args->state = ncclProxyOpNone;
       ncclSliceInfo *sliceInfo = (ncclSliceInfo *)malloc(sizeof(ncclSliceInfo));
       netParseSliceId(args, sliceInfo);
-      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0);
+      BPF_TIMELINE(args->unique_name, args->connector->comm->rank, args->connector->comm->cudaDev, true, 0, sliceInfo);
     }
   }
   return ncclSuccess;

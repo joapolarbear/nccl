@@ -322,7 +322,8 @@ int ncclCheckIntraMachine(int local_rank) {
   return 0;
 }
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t){
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo)
+{
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL || isTraceOn == 0) return 0;
 
@@ -336,15 +337,17 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
     name_str = std::string(name);
   }
 
-  auto finder = name_str.find("->");
-  if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
-    printf("%s: name shoud be passed into NCCL in the format of <step_num> -> <name>, "
-      "but %s is given, profiling is disabled \n", ByteProfilePath, name_str.c_str());
-    isTraceOn = 0;
+  auto pos1 = name_str.find("<<");
+  auto pos2 = name_str.find(">>");
+  if (pos1 == std::string::npos || pos2 == std::string::npos) {
+    if (ncclDebugLevel == NCCL_LOG_TRACE)
+      printf("%s: name passed into NCCL should contain <<step_num>>, "
+             "but %s is given, set NCCL_ENABLE_TIMELINE=0 to disable profiling \n",
+             ByteProfilePath, name_str.c_str());
     return 0;
   }
-  auto step_num = std::stoi(name_str.substr(0, finder)); 
-  name_str = name_str.substr(finder+2);
+  auto step_num = std::stoi(name_str.substr(pos1 + 2, pos2 - pos1 - 2));
+  name_str = name_str.substr(0, pos1) + name_str.substr(pos2 + 2);
 
   // parse all tensors from the fused tensor name
   std::vector<std::string> tensor_names_;

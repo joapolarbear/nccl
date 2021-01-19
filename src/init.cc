@@ -746,8 +746,7 @@ static ncclResult_t setCpuAffinity(int cudaDev) {
 }
 
 ncclResult_t ncclCommInitRankSync(ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank, int cudaDev) {
-  //huhanpeng
-  BPF_TRACE("ncclCommInitRankSync starts");
+  // BPF_TRACE("ncclCommInitRankSync starts");
 
   cpu_set_t affinitySave;
   sched_getaffinity(0, sizeof(cpu_set_t), &affinitySave);
@@ -778,8 +777,7 @@ cleanup:
 }
 
 static ncclResult_t ncclCommInitRankDev(ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank, int cudaDev) {
-  //huhanpeng
-  BPF_TRACE("ncclCommInitRankDev starts");
+  // BPF_TRACE("ncclCommInitRankDev starts");
 
   ncclResult_t res;
   char* env = getenv("NCCL_COMM_ID");
@@ -812,7 +810,7 @@ end:
 
 NCCL_API(ncclResult_t, ncclCommInitRank, ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank);
 ncclResult_t ncclCommInitRank(ncclComm_t* newcomm, int nranks, ncclUniqueId commId, int myrank) {
-  BPF_TRACE("start to init NCCL");
+  // BPF_TRACE("start to init NCCL");
   int cudaDev;
   CUDACHECK(cudaGetDevice(&cudaDev));
   NCCLCHECK(ncclCommInitRankDev(newcomm, nranks, commId, myrank, cudaDev));
