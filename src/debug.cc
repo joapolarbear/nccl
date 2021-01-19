@@ -230,7 +230,7 @@ void ncclTimelineInit(int local_rank) {
     
   } else {
     isTraceOn = isTraceNCCLTopoOn = 0;
-    printf("%s BYTEPS_TRACE_ON is not set\n", hostname);
+    printf("[NCCL] %s NCCL_ENABLE_TIMELINE is not set\n", hostname);
   }
   pthread_mutex_unlock(&ncclDebugLock);
 }
@@ -322,7 +322,7 @@ int ncclCheckIntraMachine(int local_rank) {
   return 0;
 }
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo){
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t){
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL || isTraceOn == 0) return 0;
 
@@ -335,6 +335,16 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   } else {
     name_str = std::string(name);
   }
+
+  auto finder = name_str.find("->");
+  if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
+    printf("%s: name shoud be passed into NCCL in the format of <step_num> -> <name>, "
+      "but %s is given, profiling is disabled \n", ByteProfilePath, name_str.c_str());
+    isTraceOn = 0;
+    return 0;
+  }
+  auto step_num = std::stoi(name_str.substr(0, finder)); 
+  name_str = name_str.substr(finder+2);
 
   // parse all tensors from the fused tensor name
   std::vector<std::string> tensor_names_;
@@ -354,10 +364,10 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   auto suffix = tmp_str.substr(finder);
   while ((finder=raw_names.find("+")) != std::string::npos) {
       // the name is fused, stat each tensor respectively to avoid different combinations across different steps
-      tensor_names_.push_back(prefix + raw_names.substr(0, finder) + suffix + std::to_string(sliceInfo->channelId));
+      tensor_names_.push_back(prefix + raw_names.substr(0, finder) + suffix);
       raw_names = raw_names.substr(finder+1);
   }
-  tensor_names_.push_back(prefix + raw_names + suffix + std::to_string(sliceInfo->channelId));
+  tensor_names_.push_back(prefix + raw_names + suffix);
 
   // statistic each tensor in the fused tensors
   pthread_mutex_lock(&ncclDebugLock);
@@ -370,6 +380,8 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       if (ncclDebugLevel == NCCL_LOG_TRACE) printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
 #endif
     }
+    // update the cnt of the tensor in the fused tensor name
+    trace_name_cnt[name_str_].cnt = step_num;
     // Check the number of times the tensor has arrived
     if (trace_name_cnt[name_str_].cnt >= ncclByteProfileEnd){
       if (!trace_name_cnt[name_str_].end){
@@ -382,7 +394,6 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
         // need to append the traces to the traces list
         add_trace = true;
       }
-      if (mark) trace_name_cnt[name_str_].cnt += 1;
     }
   }
 
@@ -574,10 +585,10 @@ bool ncclCheckBPF(int local_rank) {
   return isTraceOn == 1;
 }
 
-int wrap_strcpy(char *target, const char *node_name) {
+int wrap_strcpy(char *target, const char *node_name, int local_rank) {
   if (isTraceOn == -1) ncclTimelineInit(local_rank);
   if (bpfFile == NULL || isTraceOn == 0) return 0;
-  
+
   std::string name_str = std::string(node_name);
   std::vector<std::string> tensor_names_;
   auto finder = name_str.find(".");

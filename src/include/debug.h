@@ -37,14 +37,14 @@ typedef struct ncclSliceInfoT {
   int loopId;
 } ncclSliceInfo;
 
-int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t, ncclSliceInfo *sliceInfo);
+int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long long start_t);
 void *ncclOutputTrace(void *);
 void *ncclOutputNCCLTopo(void *);
 void ncclGetCurTime(long long *ret);
 bool ncclCheckBPF(int local_rank);
 void ncclSaveTopo(const char *fmt, ...);
 int ncclCheckIntraMachine(int local_rank);
-int wrap_strcpy(char *target, const char *node_name);
+int wrap_strcpy(char *target, const char *node_name, int local_rank);
 
 #define ENABLE_TRACE
 

@@ -410,7 +410,7 @@ static ncclResult_t saveKernel(struct ncclInfo* info) {
     // Proxy
     proxyArgs.channel = channel;
     if (info->unique_name != NULL) {
-      if (wrap_strcpy(proxyArgs.unique_name, info->unique_name)) {
+      if (wrap_strcpy(proxyArgs.unique_name, info->unique_name, info->comm->cudaDev)) {
         return ncclInvalidUsage;
       }
     }
