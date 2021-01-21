@@ -69,6 +69,7 @@ typedef struct ncclTraceT {
 struct pair_uint64_t_bool {
     uint64_t cnt;
     bool end;
+    int bias;
 };
 
 // Let code temporarily downgrade WARN into INFO

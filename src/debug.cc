@@ -378,13 +378,14 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   for (auto name_str_: tensor_names_) {
     std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str_);
     if (finder == trace_name_cnt.end()) {
-      trace_name_cnt[name_str_] = {0, false};
+      trace_name_cnt[name_str_] = {0, false, step_num - 1};
 #ifdef ENABLE_TRACE
-      if (ncclDebugLevel == NCCL_LOG_TRACE) printf("1: %s ncclAddTrace adds new name %s\n", ByteProfilePath, name_str_.c_str());
+      if (ncclDebugLevel == NCCL_LOG_TRACE)
+        printf("1: %s ncclAddTrace adds new name %s with bias %d \n", ByteProfilePath, name_str_.c_str(), step_num - 1);
 #endif
     }
     // update the cnt of the tensor in the fused tensor name
-    trace_name_cnt[name_str_].cnt = step_num;
+    trace_name_cnt[name_str_].cnt = step_num - trace_name_cnt[name_str_].bias;
     // Check the number of times the tensor has arrived
     if (trace_name_cnt[name_str_].cnt >= ncclByteProfileEnd){
       if (!trace_name_cnt[name_str_].end){
@@ -437,7 +438,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   ncclTrace *p_trace = (ncclTrace *)malloc(sizeof(ncclTrace));
   char debugFn[PATH_MAX+1];
   snprintf(debugFn, PATH_MAX, "comm_detail_r%d_lr%d", rank, local_rank);
-  strcpy(p_trace->name, name);
+  strcpy(p_trace->name, name_str.c_str());
   strcpy(p_trace->pid, debugFn);
   strcpy(p_trace->tid, "none");
   p_trace->channelId = sliceInfo->channelId;
