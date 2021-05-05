@@ -28,6 +28,12 @@ ncclTrace* nccl_traces_end = NULL;
 std::unordered_map<std::string, struct pair_uint64_t_bool> trace_name_cnt;
 std::unordered_map<std::string, std::unordered_map<int, std::string>> topo;
 
+const char *GetEnvironmentVariableOrDefault(const std::string& variable_name, 
+                                            const std::string& default_value) {
+    const char* value = getenv(variable_name.c_str());
+    return value ? value : default_value.c_str();
+}
+
 int ncclParseFileName(const char *FileEnv, FILE **fd) {
   int c = 0;
   char debugFn[PATH_MAX+1] = "";
@@ -211,19 +217,17 @@ void ncclTimelineInit(int local_rank) {
   // for byteprofile
   char hostname[1024];
   getHostName(hostname, 1024, '.');
-  const char* ncclByteProfileTrace = getenv("NCCL_ENABLE_TIMELINE");
-  if (ncclByteProfileTrace != NULL && ncclByteProfileTrace[0] == '1') {
+  const char* ncclByteProfileTrace = GetEnvironmentVariableOrDefault("NCCL_ENABLE_TIMELINE", "0");
+  if (ncclByteProfileTrace[0] == '1') {
     isTraceOn = isTraceNCCLTopoOn = 1;
-    ncclByteProfileStart = std::stoi(getenv("BYTEPS_TRACE_START_STEP"));
-    ncclByteProfileEnd = std::stoi(getenv("BYTEPS_TRACE_END_STEP"));
-    printf("%s Timeline Range:[%d %d]\n", hostname, ncclByteProfileStart, ncclByteProfileEnd);
-
-    const char* ncclByteProfileDir = getenv("BYTEPS_TRACE_DIR");
+    ncclByteProfileStart = std::stoi(GetEnvironmentVariableOrDefault("BYTEPS_TRACE_START_STEP", "10"));
+    ncclByteProfileEnd = std::stoi(GetEnvironmentVariableOrDefault("BYTEPS_TRACE_END_STEP", "20"));
+    const char* ncclByteProfileDir = GetEnvironmentVariableOrDefault("BYTEPS_TRACE_DIR", "/tmp");
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
                    "%s/%d/comm_detail.json", ncclByteProfileDir, local_rank);
-    printf("%s Timeline path: %s\n", hostname, ByteProfilePath);
-    ncclParseFileName(ByteProfilePath, &bpfFile);
 
+    printf("[NCCL] %s Timeline Range:[%d %d], Timeline path: %s\n", hostname, ncclByteProfileStart, ncclByteProfileEnd, ByteProfilePath);
+    ncclParseFileName(ByteProfilePath, &bpfFile);
     snprintf(ByteProfilePathNCCL, sizeof(ByteProfilePathNCCL),
                    "%s/%d/nccl_rank_graph.json", ncclByteProfileDir, local_rank);
     ncclParseFileName(ByteProfilePathNCCL, &bpfFileNCLLTopo);
@@ -297,9 +301,9 @@ bool ncclIsNeedArrive(std::string name) {
 /** Print the number of arrival of each tensor
 */
 void ncclPrintCnt() {
-  printf("%s ncclPrintCnt \n", ByteProfilePath);
+  printf("[NCCL] %s ncclPrintCnt \n", ByteProfilePath);
   for (auto it = trace_name_cnt.begin(); it != trace_name_cnt.end(); ++ it) {
-    printf("ncclPrintCnt Name:%s Cnt:%lu\n", it->first.c_str(), it->second.cnt);
+    printf("[NCCL] ncclPrintCnt Name:%s Cnt:%lu\n", it->first.c_str(), it->second.cnt);
   }
 }
 
@@ -330,7 +334,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   // ignore names which is NULL or empty
   std::string name_str;
   if (name == NULL or strlen(name) == 0) {
-    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s: is NULL \n", ByteProfilePath);
+    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("[NCCL] %s: is NULL \n", ByteProfilePath);
     return 0;
     // name_str = std::string("default_name");
   } else {
@@ -341,7 +345,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   auto pos2 = name_str.find(">>");
   if (pos1 == std::string::npos || pos2 == std::string::npos) {
     if (ncclDebugLevel == NCCL_LOG_TRACE)
-      printf("%s: name passed into NCCL should contain <<step_num>>, "
+      printf("[NCCL] %s: name passed into NCCL should contain <<step_num>>, "
              "but %s is given, set NCCL_ENABLE_TIMELINE=0 to disable profiling \n",
              ByteProfilePath, name_str.c_str());
     return 0;
@@ -353,14 +357,14 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   std::vector<std::string> tensor_names_;
   auto finder = name_str.find(".");
   if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
-    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s: %s has no prefix \n", ByteProfilePath, name_str.c_str());
+    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("[NCCL] %s: %s has no prefix \n", ByteProfilePath, name_str.c_str());
     return 0;
   }
   auto prefix = name_str.substr(0, finder+1);
   auto tmp_str = name_str.substr(finder+1);
   finder = tmp_str.find(".");
   if (finder == std::string::npos || finder == 0 || finder == name_str.length()) {
-    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s: %s has no suffix \n", ByteProfilePath, name_str.c_str());
+    if (ncclDebugLevel == NCCL_LOG_TRACE) printf("[NCCL] %s: %s has no suffix \n", ByteProfilePath, name_str.c_str());
     return 0;
   }
   auto raw_names = tmp_str.substr(0, finder);
@@ -381,7 +385,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       trace_name_cnt[name_str_] = {0, false, step_num - 1};
 #ifdef ENABLE_TRACE
       if (ncclDebugLevel == NCCL_LOG_TRACE)
-        printf("1: %s ncclAddTrace adds new name %s with bias %d \n", ByteProfilePath, name_str_.c_str(), step_num - 1);
+        printf("[NCCL] 1: %s ncclAddTrace adds new name %s with bias %d \n", ByteProfilePath, name_str_.c_str(), step_num - 1);
 #endif
     }
     // update the cnt of the tensor in the fused tensor name
@@ -409,7 +413,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
       if (!it->second.end && ncclIsNeedArrive(it->first)) {
         all_arrive = false;
 #ifdef ENABLE_TRACE
-        if (ncclDebugLevel == NCCL_LOG_TRACE) printf("%s wait for %s (cnt: %lu)\n", ByteProfilePath, it->first.c_str(), it->second.cnt);
+        if (ncclDebugLevel == NCCL_LOG_TRACE) printf("[NCCL] %s wait for %s (cnt: %lu)\n", ByteProfilePath, it->first.c_str(), it->second.cnt);
 #endif
         break;
       }
@@ -598,7 +602,7 @@ int wrap_strcpy(char *target, const char *node_name, int local_rank) {
   auto finder = name_str.find(".");
   if (finder == std::string::npos || finder == 0 ||
       finder == name_str.length()) {
-    printf("%s has no prefix \n", name_str.c_str());
+    printf("[NCCL] %s has no prefix \n", name_str.c_str());
     strcpy(target, node_name);
     return 0;
   }
