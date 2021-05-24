@@ -220,9 +220,9 @@ void ncclTimelineInit(int local_rank) {
   const char* ncclByteProfileTrace = GetEnvironmentVariableOrDefault("NCCL_ENABLE_TIMELINE", "0");
   if (ncclByteProfileTrace[0] == '1') {
     isTraceOn = isTraceNCCLTopoOn = 1;
-    ncclByteProfileStart = std::stoi(GetEnvironmentVariableOrDefault("BYTEPS_TRACE_START_STEP", "10"));
-    ncclByteProfileEnd = std::stoi(GetEnvironmentVariableOrDefault("BYTEPS_TRACE_END_STEP", "20"));
-    const char* ncclByteProfileDir = GetEnvironmentVariableOrDefault("BYTEPS_TRACE_DIR", "/tmp");
+    ncclByteProfileStart = std::stoi(GetEnvironmentVariableOrDefault("NCCL_TRACE_START_STEP", "10"));
+    ncclByteProfileEnd = std::stoi(GetEnvironmentVariableOrDefault("NCCL_TRACE_END_STEP", "20"));
+    const char* ncclByteProfileDir = GetEnvironmentVariableOrDefault("NCCL_TRACE_DIR", "/tmp");
     snprintf(ByteProfilePath, sizeof(ByteProfilePath),
                    "%s/%d/comm_detail.json", ncclByteProfileDir, local_rank);
 
@@ -497,7 +497,7 @@ void *ncclOutputNCCLTopo(void *) {
   fflush(bpfFileNCLLTopo);
   fclose(bpfFileNCLLTopo);
   bpfFileNCLLTopo = NULL;
-  printf("Byteprofiler output nccl topo at %s\n", ByteProfilePathNCCL);
+  printf("[NCCL] Output nccl topo at %s\n", ByteProfilePathNCCL);
   return NULL;
 }
 
@@ -584,7 +584,7 @@ void *ncclOutputTrace(void *) {
   fflush(bpfFile);
   fclose(bpfFile);
   bpfFile = NULL;
-  printf("Byteprofiler output nccl traces at %s\n", ByteProfilePath);
+  printf("[NCCL] Output nccl traces at %s\n", ByteProfilePath);
   return NULL;
 }
 
