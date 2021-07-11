@@ -406,7 +406,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
     }
 #ifdef ENABLE_TRACE
     if (ncclDebugLevel == NCCL_LOG_TRACE) {
-      printf("[NCCL] %d/%d - tensor name: %s, cnt: %d, add trace: %d, check dump: %d.\n",
+      printf("[NCCL] %d/%d - tensor name: %s, cnt: %lu, add trace: %d, check dump: %d.\n",
              rank, local_rank, name_str_.c_str(), trace_name_cnt[name_str_].cnt,
              add_trace ? 1 : 0, check_dump ? 1 : 0);
     }
