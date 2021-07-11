@@ -382,6 +382,7 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
   for (auto name_str_: tensor_names_) {
     std::unordered_map<std::string, struct pair_uint64_t_bool>::const_iterator finder = trace_name_cnt.find(name_str_);
     if (finder == trace_name_cnt.end()) {
+      // {cnt, end_or_not, bias}
       trace_name_cnt[name_str_] = {0, false, step_num - 1};
 #ifdef ENABLE_TRACE
       if (ncclDebugLevel == NCCL_LOG_TRACE)
@@ -403,6 +404,13 @@ int ncclAddTrace(const char *name, int rank, int local_rank, bool mark, long lon
         add_trace = true;
       }
     }
+#ifdef ENABLE_TRACE
+    if (ncclDebugLevel == NCCL_LOG_TRACE) {
+      printf("[NCCL] %d/%d - tensor name: %s, cnt: %d, add trace: %d, check dump: %d.\n",
+             rank, local_rank, name_str_.c_str(), trace_name_cnt[name_str_].cnt,
+             add_trace ? 1 : 0, check_dump ? 1 : 0);
+    }
+#endif
   }
 
   // check whether to dump NCCL traces

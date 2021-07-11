@@ -16,5 +16,5 @@ to
 ``` C++
 ncclAllReduce(sendbuff, recvbuff, count, datatype, op, commstream, tensor_name.c_str())
 ```
-Currently, we only support tensor names in the format of `id<<step_id>>`, e.g. `1<<2>>` represents tensor `1` in step `2`. Here `id` should be able to be converted to an integer, or no traces will be outputed.
+Currently, we only support tensor names in the format of `prefix.id<<step_id>>`, e.g. `1<<2>>` represents tensor `1` in step `2`. Here `id` should be able to be converted to an integer, or no traces will be outputed.
 See [src/debug.cc#L353](src/debug.cc#L353) for more details.
